@@ -3,148 +3,259 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phúc Bình Scalping</title>
+    <title>Phúc Bình Scalping Phái Sinh</title>
     <style>
-        /* Nền chuyển sắc chuẩn theo ảnh gốc từ Vàng Cam sang Đỏ */
+        /* Toàn bộ nền đổ màu chuẩn từ Vàng Cam sang Đỏ */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(to right, #e6931e, #df372a);
+            background: linear-gradient(to right, #f9c851, #f15238);
             margin: 0;
-            padding: 40px 20px;
+            padding: 20px;
             display: flex;
             justify-content: center;
+            align-items: center;
             min-height: 100vh;
             box-sizing: border-box;
+            color: #000000;
         }
 
-        .wrapper {
-            max-width: 580px;
+        .container {
+            max-width: 1100px;
             width: 100%;
-            text-align: center;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
         }
 
-        /* Avatar tròn */
-        .avatar {
-            width: 96px;
-            height: 96px;
-            border-radius: 50%;
-            object-fit: cover;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            margin-bottom: 15px;
-        }
-
-        /* Tiêu đề tên */
-        h1 {
-            font-size: 28px;
-            color: #000000;
-            margin: 0 0 20px 0;
-            font-weight: 500;
-        }
-
-        /* Danh sách các ô link */
-        .links-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        /* Khung bọc chung cho tất cả các ô */
-        .card-item {
-            background-color: rgba(255, 255, 255, 0.65);
-            border-radius: 8px;
-            text-decoration: none;
-            color: #000000;
+        /* Thanh đầu trang: Logo và Tên thương hiệu lớn */
+        .header-section {
             display: flex;
             align-items: center;
-            position: relative;
-            min-height: 54px;
-            box-sizing: border-box;
-            transition: transform 0.2s, background-color 0.2s;
+            gap: 20px;
+            border-bottom: 3px solid #002060;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            text-align: left;
         }
 
-        .card-item:hover {
-            transform: scale(1.01);
-            background-color: rgba(255, 255, 255, 0.75);
+        .avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
-        /* Ô thông tin ID VPS phía trên (không bấm được) */
-        .info-box {
-            padding: 12px;
-            justify-content: center;
-            flex-direction: column;
-            font-size: 15px;
-            line-height: 1.4;
-            font-weight: 500;
+        .header-title {
+            font-size: 42px;
+            font-weight: bold;
+            color: #ffffff;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }
 
-        /* Icon bên trái của các nút bấm */
-        .card-icon {
-            width: 40px;
-            height: 40px;
-            object-fit: contain;
-            position: absolute;
-            left: 7px;
-            border-radius: 4px;
-            background: #fff; /* Giúp các icon luôn nổi bật */
+        /* Bố cục chia 2 cột Trái - Phải */
+        .main-content {
+            display: flex;
+            gap: 50px;
+            flex-wrap: wrap;
         }
 
-        /* Chữ của nút bấm nằm ở giữa */
-        .card-text {
-            width: 100%;
+        /* CỘT BÊN TRÁI: Phần mềm và Khung ảnh lướt */
+        .left-column {
+            flex: 1;
+            min-width: 320px;
             text-align: center;
-            font-size: 15px;
-            font-weight: 500;
-            padding: 0 50px; /* Tránh chữ đè vào icon */
         }
 
-        /* Dòng chữ bản quyền nhỏ dưới cùng */
-        .footer {
-            margin-top: 40px;
-            font-size: 12px;
-            color: rgba(0, 0, 0, 0.5);
+        .software-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #002060;
+            margin-top: 0;
+            margin-bottom: 5px;
+        }
+
+        .software-subtitle {
+            font-size: 26px;
+            font-weight: bold;
+            color: #002060;
+            margin-bottom: 20px;
+        }
+
+        /* --- Cấu trúc Slider tự động lướt ảnh --- */
+        .slider-container {
+            width: 100%;
+            max-width: 450px;
+            height: 300px;
+            margin: 0 auto;
+            overflow: hidden;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+            background: #fff;
+            position: relative;
+        }
+
+        .slider-wrapper {
+            display: flex;
+            width: 300%; /* Số lượng ảnh x 100% (ở đây có 3 ảnh) */
+            height: 100%;
+            animation: slideAnimation 12s infinite ease-in-out; /* Tự động lướt */
+        }
+
+        .slider-wrapper img {
+            width: 33.33%;
+            height: 100%;
+            object-fit: contain;
+            background: #fff;
+        }
+
+        /* Định thời gian chuyển đổi giữa các ảnh */
+        @keyframes slideAnimation {
+            0% { transform: translateX(0); }
+            30% { transform: translateX(0); }
+            33% { transform: translateX(-33.33%); }
+            63% { transform: translateX(-33.33%); }
+            66% { transform: translateX(-66.66%); }
+            96% { transform: translateX(-66.66%); }
+            100% { transform: translateX(0); }
+        }
+
+        /* CỘT BÊN PHẢI: Thông tin và Nút bấm */
+        .right-column {
+            flex: 1;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+        }
+
+        .vps-info {
+            font-size: 18px;
+            font-weight: bold;
+            color: #002060;
+            margin-bottom: 8px;
+            text-align: right;
+        }
+
+        .phone-info {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ff0000;
+            margin-bottom: 25px;
+            text-align: right;
+        }
+
+        .description-list {
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            padding-left: 20px;
+            font-weight: 500;
+        }
+
+        .description-list li {
+            margin-bottom: 12px;
+        }
+
+        /* Khu vực các nút bấm hàng ngang dưới cùng */
+        .buttons-row {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: auto;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: transform 0.2s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-download {
+            background-color: #29b6f6;
+            color: #ffffff;
+        }
+
+        .btn-youtube {
+            background-color: #ff0000;
+            color: #ffffff;
+        }
+
+        .btn img {
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+        }
+
+        /* Tối ưu hiển thị mượt mà trên điện thoại */
+        @media (max-width: 768px) {
+            .header-section { flex-direction: column; text-align: center; }
+            .main-content { flex-direction: column; gap: 30px; }
+            .vps-info, .phone-info { text-align: center; }
+            .buttons-row { flex-direction: column; width: 100%; }
+            .btn { width: 100%; box-sizing: border-box; }
         }
     </style>
 </head>
 <body>
 
-    <div class="wrapper">
-        <img src="logo.png" alt="Phúc Bình Scalping" class="avatar">
-        
-        <h1>Phúc Bình Scalping</h1>
-        
-        <div class="links-list">
-            <div class="card-item info-box">
-                <div>TVĐT Chứng khoán Việt Nam</div>
-                <div>ID VPS: BOR5 - NGUYỄN PHÚC BÌNH</div>
-            </div>
-
-            <a href="#" target="_blank" class="card-item">
-                <img src="icon-vps.png" class="card-icon" alt="VPS">
-                <span class="card-text">Mở Tài khoản Chứng khoán chỉ 2 phút</span>
-            </a>
-
-            <a href="#" target="_blank" class="card-item">
-                <img src="icon-zalo.png" class="card-icon" alt="Zalo">
-                <span class="card-text">Room Cộng Đồng Phái Sinh</span>
-            </a>
-
-            <a href="#" target="_blank" class="card-item">
-                <img src="icon-youtube.png" class="card-icon" alt="Youtube">
-                <span class="card-text">Youtube</span>
-            </a>
-
-            <a href="#" target="_blank" class="card-item">
-                <img src="icon-tiktok.png" class="card-icon" alt="TikTok">
-                <span class="card-text">TikTok</span>
-            </a>
-
-            <a href="#" target="_blank" class="card-item">
-                <img src="icon-drive.png" class="card-icon" alt="Drive">
-                <span class="card-text">Phần mềm Phái Sinh</span>
-            </a>
+    <div class="container">
+        <div class="header-section">
+            <img src="logo.png" alt="Logo" class="avatar">
+            <h1 class="header-title">Phúc Bình Scalping Phái Sinh</h1>
         </div>
 
-        <div class="footer">
+        <div class="main-content">
+            
+            <div class="left-column">
+                <div class="software-title">Phần mềm dự đoán</div>
+                <div class="software-subtitle">Chứng khoán phái sinh</div>
+                
+                <div class="slider-container">
+                    <div class="slider-wrapper">
+                        <img src="phanmem1.png" alt="Phần mềm 1">
+                        <img src="phanmem2.png" alt="Phần mềm 2">
+                        <img src="phanmem3.png" alt="Phần mềm 3">
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-column">
+                <div class="vps-info">ID VPS: BOR5 - NGUYỄN PHÚC BÌNH</div>
+                <div class="phone-info">LH: 0853.525.379</div>
+
+                <ul class="description-list">
+                    <li>Biên độ của Chứng khoán phái sinh trong một ngày là thứ mà khó lòng cho những anh/chị/em nhà đầu tư giao dịch.</li>
+                    <li>Thấu hiểu những điều đó, Phúc Bình Scalping Phái Sinh thiết kế ra Bot/Công cụ để hỗ trợ anh/chị/em xác định được đỉnh/đáy trong ngày của phái sinh.</li>
+                    <li>Để nhà đầu tư có thể giao dịch hiệu quả nhất.</li>
+                </ul>
+
+                <div class="buttons-row">
+                    <a href="#" target="_blank" class="btn btn-download">
+                        <img src="icon-drive.png" alt="Tải Bot"> Tải Bot
+                    </a>
+                    <a href="#" target="_blank" class="btn btn-youtube">
+                        <img src="icon-youtube.png" alt="YouTube"> YouTube
+                    </a>
+                </div>
+            </div>
+
         </div>
     </div>
 
