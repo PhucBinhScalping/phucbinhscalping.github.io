@@ -444,7 +444,7 @@
             .btn { width: 100%; box-sizing: border-box; }
             .qr-section { flex-direction: column; align-items: center; }
             .qr-title { min-height: auto; margin-bottom: 10px; }
-            .sticky-contact-btn { bottom: 20px; left: 20px; padding: 12px 20px; font-size: 14px; }
+            .sticky-contact-btn { bottom: 20px; right: 20px; padding: 12px 20px; font-size: 14px; }
         }
     </style>
 </head>
@@ -478,7 +478,7 @@
 
                 <ul class="description-list">
                     <li>Biên độ của Chứng khoán phái sinh trong một ngày là thứ mà khó lòng cho những anh/chị/em nhà đầu tư giao dịch.</li>
-                    <li>Do đó, Phúc Bình Scalping Phái Sinh thiết kế ra Bot/Công cụ để hỗ trợ anh/chị/em xác định được đỉnh/đáy trong ngày của phái sinh.</li>
+                    <li>Do đó, Phúc Bình Scalping Phái Sinh thiết kế ra Bot/Công cụ để hỗ trợ anh/chị/em xác định được đỉnh/đáy trong ngày của phái sinh.</li>
                     <li>Để nhà đầu tư có thể giao dịch hiệu quả nhất.</li>
                 </ul>
 
@@ -584,7 +584,16 @@
         openContactBtn.addEventListener('click', () => contactModal.classList.add('active'));
         closeContactBtn.addEventListener('click', () => contactModal.classList.remove('active'));
         contactModal.addEventListener('click', (e) => { if (e.target === contactModal) contactModal.classList.remove('active'); });
-    </script>
 
+        // --- TỰ ĐỘNG XÓA THÔNG TIN NGAY KHI BẤM GỬI ---
+        const contactForm = contactModal.querySelector('form');
+        if (contactForm) {
+            contactForm.addEventListener('submit', () => {
+                setTimeout(() => {
+                    contactForm.reset(); 
+                }, 100);
+            });
+        }
+    </script>
 </body>
 </html>
