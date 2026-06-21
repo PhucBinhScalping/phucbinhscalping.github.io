@@ -5,16 +5,94 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Phúc Bình Scalping Phái Sinh</title>
     <style>
-        /* Toàn bộ nền đổ màu chuẩn từ Vàng Cam sang Đỏ */
+        /* --- TRANG 3: KHU VỰC BÀI VIẾT CHIA SẺ --- */
+        .blog-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .blog-header {
+            font-size: 26px;
+            font-weight: bold;
+            color: #002060;
+            border-bottom: 2px solid #002060;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            text-align: left;
+        }
+
+        .blog-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+        }
+
+        .blog-card {
+            background: #ffffff;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .blog-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .blog-img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            background: #eee;
+        }
+
+        .blog-content {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            text-align: left;
+        }
+
+        .blog-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #002060;
+            margin: 0 0 10px 0;
+            line-height: 1.4;
+        }
+
+        .blog-excerpt {
+            font-size: 14px;
+            color: #555555;
+            margin: 0 0 20px 0;
+            line-height: 1.5;
+            flex: 1;
+        }
+
+        .blog-date {
+            font-size: 12px;
+            color: #999999;
+            font-weight: 500;
+        }
+
+        /* --- CẤU TRÚC GIAO DIỆN CHÍNH --- */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background: linear-gradient(to right, #f9c851, #f15238);
             margin: 0;
-            padding: 20px 10px;
+            /* ĐÃ CHỈNH SỬA: Giảm padding phía trên từ 20px xuống 5px để đẩy thẻ sát lên trên theo ý bạn */
+            padding: 5px 10px 20px 10px; 
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 40px; /* Khoảng cách giữa trang 1 và trang 2 */
+            gap: 25px; /* Giảm khoảng cách giữa các trang cho gọn gàng */
             min-height: 100vh;
             box-sizing: border-box;
             color: #000000;
@@ -24,11 +102,13 @@
             max-width: 1100px;
             width: 100%;
             background: rgba(255, 255, 255, 0.15);
-            padding: 40px;
+            padding: 30px 40px; /* Giảm nhẹ padding top/bottom của khung */
             border-radius: 20px;
             backdrop-filter: blur(10px);
             box-shadow: 0 10px 30px rgba(0,0,0,0.15);
             box-sizing: border-box;
+            /* ĐÃ THÊM: Đảm bảo margin phía trên bằng 0 để áp sát lề */
+            margin-top: 0; 
         }
 
         /* --- TRANG 1 --- */
@@ -189,33 +269,11 @@
 
         .btn-download { background-color: #29b6f6; color: #ffffff; }
         .btn-youtube { background-color: #ff0000; color: #ffffff; }
+        .btn-link-vps { background-color: #002060; color: #ffffff; font-size: 15px; padding: 10px 20px; border-radius: 20px; }
 
-        /* Nút link mở tài khoản ở trang 2 */
-        .btn-link-vps {
-            background-color: #002060;
-            color: #ffffff;
-            font-size: 15px;
-            padding: 10px 20px;
-            border-radius: 20px;
-        }
-
-        /* Nút Mời Cafe AD cuối trang */
-        .cafe-section {
-            text-align: center;
-            margin-top: 30px;
-            width: 100%;
-        }
-        .btn-cafe {
-            background-color: #6F4E37; /* Đổi thành màu nâu Cafe chuẩn */
-            color: #ffffff;
-            font-size: 18px;
-            padding: 14px 40px;
-            border-radius: 30px;
-        }
-        
-        .btn-cafe:hover {
-            background-color: #4A3321; /* Màu nâu đậm hơn khi khách di chuột vào */
-        }
+        .cafe-section { text-align: center; margin-top: 30px; width: 100%; }
+        .btn-cafe { background-color: #6F4E37; color: #ffffff; font-size: 18px; padding: 14px 40px; border-radius: 30px; }
+        .btn-cafe:hover { background-color: #4A3321; }
         
         /* --- TRANG 2: KHU VỰC QR CODE --- */
         .qr-section {
@@ -271,17 +329,10 @@
             align-items: center;
         }
 
-        .qr-card-zalo img {
-            border-radius: 15px;
-        }
+        .qr-card-zalo img { border-radius: 15px; }
+        .qr-image { width: 100%; height: auto; display: block; }
 
-        .qr-image {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        /* --- BUTTON NỔI (STICKY) ĐỂ LIÊN HỆ GÓC MÀN HÌNH --- */
+        /* --- BUTTON NỔI (STICKY) --- */
         .sticky-contact-btn {
             position: fixed;
             bottom: 30px;
@@ -300,24 +351,18 @@
             align-items: center;
             gap: 10px;
             transition: transform 0.2s, background-color 0.2s;
+            animation: pulseAnimation 2s infinite;
         }
 
-        .sticky-contact-btn:hover {
-            transform: scale(1.05);
-            background-color: #00103a;
-        }
+        .sticky-contact-btn:hover { transform: scale(1.05); background-color: #00103a; }
 
-        /* Hiệu ứng rung nhẹ tự động thu hút sự chú ý của khách */
         @keyframes pulseAnimation {
             0% { box-shadow: 0 0 0 0 rgba(0, 32, 96, 0.7); }
             70% { box-shadow: 0 0 0 15px rgba(0, 32, 96, 0); }
             100% { box-shadow: 0 0 0 0 rgba(0, 32, 96, 0); }
         }
-        .sticky-contact-btn {
-            animation: pulseAnimation 2s infinite;
-        }
 
-        /* --- HỘP THOẠI CHỨA FORM TƯ VẤN (POP-UP MODAL) --- */
+        /* --- POP-UP MODAL --- */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -335,10 +380,7 @@
             transition: opacity 0.3s ease;
         }
 
-        .modal-overlay.active {
-            opacity: 1;
-            pointer-events: auto;
-        }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
 
         .modal-box {
             background: #ffffff;
@@ -352,88 +394,20 @@
             transition: transform 0.3s ease;
             position: relative;
             max-height: 90vh;
-            overflow-y: auto; /* Tránh tràn màn hình trên điện thoại nhỏ */
+            overflow-y: auto;
         }
 
-        .modal-overlay.active .modal-box {
-            transform: scale(1);
-        }
+        .modal-overlay.active .modal-box { transform: scale(1); }
+        .modal-box h3 { margin-top: 0; color: #002060; font-size: 22px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; text-align: left; }
+        .form-group label { display: block; font-weight: bold; color: #002060; margin-bottom: 5px; font-size: 14px; }
+        .form-group input, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #cccccc; border-radius: 8px; font-size: 15px; box-sizing: border-box; font-family: inherit; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #002060; box-shadow: 0 0 5px rgba(0, 32, 96, 0.2); }
+        .btn-submit-form { background-color: #002060; color: #ffffff; width: 100%; padding: 12px; font-size: 16px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.15); margin-bottom: 15px; }
+        .bank-qr-img { width: 100%; max-width: 250px; height: auto; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 15px; }
+        .btn-close { background-color: #757575; color: #ffffff; font-size: 14px; padding: 8px 25px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; }
+        .btn-close:hover { background-color: #555555; }
 
-        .modal-box h3 {
-            margin-top: 0;
-            color: #002060;
-            font-size: 22px;
-            margin-bottom: 20px;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-            text-align: left;
-        }
-
-        .form-group label {
-            display: block;
-            font-weight: bold;
-            color: #002060;
-            margin-bottom: 5px;
-            font-size: 14px;
-        }
-
-        .form-group input, .form-group textarea {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #cccccc;
-            border-radius: 8px;
-            font-size: 15px;
-            box-sizing: border-box;
-            font-family: inherit;
-        }
-
-        .form-group input:focus, .form-group textarea:focus {
-            outline: none;
-            border-color: #002060;
-            box-shadow: 0 0 5px rgba(0, 32, 96, 0.2);
-        }
-
-        .btn-submit-form {
-            background-color: #002060;
-            color: #ffffff;
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            border-radius: 8px;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-            margin-bottom: 15px;
-        }
-
-        .bank-qr-img {
-            width: 100%;
-            max-width: 250px;
-            height: auto;
-            border-radius: 10px;
-            border: 1px solid #ddd;
-            margin-bottom: 15px;
-        }
-
-        .btn-close {
-            background-color: #757575;
-            color: #ffffff;
-            font-size: 14px;
-            padding: 8px 25px;
-            border-radius: 20px;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        .btn-close:hover {
-            background-color: #555555;
-        }
-
-        /* Tối ưu hiển thị Responsive trên điện thoại */
         @media (max-width: 768px) {
             .header-section { flex-direction: column; text-align: center; }
             .header-title { font-size: 30px; }
@@ -495,7 +469,6 @@
 
     <div class="container">
         <div class="qr-section">
-            
             <div class="qr-block">
                 <div class="qr-title">Mở tài khoản chứng khoán chỉ 2 phút</div>
                 <div class="buttons-row">
@@ -521,34 +494,52 @@
         </div>
     </div>
 
+    <div class="container">
+        <div class="blog-section">
+            <div class="blog-header">📚 Bài Viết Chia Sẻ Kinh Nghiệm</div>
+            <div class="blog-grid">
+                <a href="LINK_BAI_VIET_1" class="blog-card">
+                    <img src="anh-bai-viet-1.png" alt="Tiêu đề bài viết 1" class="blog-img">
+                    <div class="blog-content">
+                        <h4 class="blog-title">Bí quyết xác định biên độ đỉnh đáy Phái Sinh trong phiên</h4>
+                        <p class="blog-excerpt">Chia sẻ phương pháp thực chiến sử dụng Bot phân tích biên độ để tìm điểm vào lệnh Scalping tối ưu...</p>
+                        <span class="blog-date">📅 Ngày 21/06/2026</span>
+                    </div>
+                </a>
+                <a href="LINK_BAI_VIET_2" class="blog-card">
+                    <img src="anh-bai-viet-2.png" alt="Tiêu đề bài viết 2" class="blog-img">
+                    <div class="blog-content">
+                        <h4 class="blog-title">Kỷ luật đi vốn và Quản trị tâm lý trong giao dịch Scalping</h4>
+                        <p class="blog-excerpt">Trong trading phái sinh, phương pháp chỉ chiếm 20%, còn lại 80% là tâm lý...</p>
+                        <span class="blog-date">📅 Ngày 18/06/2026</span>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="contactModal">
         <div class="modal-box">
             <h3>💬 Đăng Ký Tư Vấn</h3>
-            
-            <form action="https://formspree.io/f/xrewzpjl" method="POST">
+            <form action="https://formspree.io/f/THAY_ID_FORM_TẠI_ĐÂY" method="POST">
                 <div class="form-group">
                     <label for="name">Họ và Tên:</label>
                     <input type="text" id="name" name="Họ Tên" placeholder="Nguyễn Văn A" required>
                 </div>
-                
                 <div class="form-group">
                     <label for="phone">Số điện thoại (Zalo):</label>
                     <input type="tel" id="phone" name="Số Điện Thoại" placeholder="0901234567" required>
                 </div>
-                
                 <div class="form-group">
                     <label for="email">Địa chỉ Gmail:</label>
                     <input type="email" id="email" name="Gmail" placeholder="name@gmail.com" required>
                 </div>
-                
                 <div class="form-group">
                     <label for="message">Nội dung cần hỗ trợ:</label>
                     <textarea id="message" name="Nội Dung Cần Tư Vấn" rows="3" placeholder="Ví dụ: Cài đặt phần mềm..." required></textarea>
                 </div>
-                
                 <button type="submit" class="btn-submit-form">Gửi Thông Tin Cho AD</button>
             </form>
-            
             <button class="btn-close" id="closeContactBtn">Đóng</button>
         </div>
     </div>
@@ -564,33 +555,26 @@
     </div>
 
     <script>
-        // Các biến điều khiển Pop-up Cafe
         const openCafeBtn = document.getElementById('openCafeBtn');
         const closeCafeBtn = document.getElementById('closeCafeBtn');
         const cafeModal = document.getElementById('cafeModal');
 
-        // Các biến điều khiển Pop-up Form Tư vấn
         const openContactBtn = document.getElementById('openContactBtn');
         const closeContactBtn = document.getElementById('closeContactBtn');
         const contactModal = document.getElementById('contactModal');
 
-        // Logic Pop-up Cafe
         openCafeBtn.addEventListener('click', () => cafeModal.classList.add('active'));
         closeCafeBtn.addEventListener('click', () => cafeModal.classList.remove('active'));
         cafeModal.addEventListener('click', (e) => { if (e.target === cafeModal) cafeModal.classList.remove('active'); });
 
-        // Logic Pop-up Form Tư vấn
         openContactBtn.addEventListener('click', () => contactModal.classList.add('active'));
         closeContactBtn.addEventListener('click', () => contactModal.classList.remove('active'));
         contactModal.addEventListener('click', (e) => { if (e.target === contactModal) contactModal.classList.remove('active'); });
 
-        // --- TỰ ĐỘNG XÓA THÔNG TIN NGAY KHI BẤM GỬI ---
         const contactForm = contactModal.querySelector('form');
         if (contactForm) {
             contactForm.addEventListener('submit', () => {
-                setTimeout(() => {
-                    contactForm.reset(); 
-                }, 100);
+                setTimeout(() => { contactForm.reset(); }, 100);
             });
         }
     </script>
