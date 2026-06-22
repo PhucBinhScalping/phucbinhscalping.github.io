@@ -360,9 +360,10 @@
             font-weight: bold;
             box-shadow: 0 8px 25px rgba(0,0,0,0.3);
             border: 2px solid #ffffff;
+            text-decoration: none; /* Bổ sung để xóa gạch chân cho thẻ <a> */
             cursor: pointer;
             z-index: 999;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 10px;
             transition: transform 0.2s, background-color 0.2s;
@@ -371,10 +372,25 @@
 
         .sticky-contact-btn:hover { transform: scale(1.05); background-color: #00103a; }
 
+        /* --- CSS RIÊNG BIỆT CHO NÚT MINIGAME --- */
+        .minigame-btn {
+            bottom: 95px !important; /* Đẩy nút MiniGame nằm lên trên nút tư vấn */
+            background: linear-gradient(135deg, #ff4757, #ff6b81) !important; /* Đổi sang màu đỏ cam nổi bật */
+            border-color: #ffffff !important;
+            animation: pulseMiniGame 2s infinite !important; /* Hiệu ứng nhấp nháy riêng */
+        }
+        .minigame-btn:hover { background: linear-gradient(135deg, #ee3848, #f85c72) !important; }
+
         @keyframes pulseAnimation {
             0% { box-shadow: 0 0 0 0 rgba(0, 32, 96, 0.7); }
             70% { box-shadow: 0 0 0 15px rgba(0, 32, 96, 0); }
             100% { box-shadow: 0 0 0 0 rgba(0, 32, 96, 0); }
+        }
+
+        @keyframes pulseMiniGame {
+            0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 71, 87, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
         }
 
         /* --- POP-UP MODAL --- */
@@ -421,6 +437,11 @@
             .qr-section { flex-direction: column; align-items: center; }
             .qr-title { min-height: auto; margin-bottom: 10px; }
             .sticky-contact-btn { bottom: 20px; right: 20px; padding: 12px 20px; font-size: 14px; }
+            
+            /* Điều chỉnh cho nút MiniGame trên mobile */
+            .minigame-btn {
+                bottom: 75px !important; 
+            }
         }
     </style>
 </head>
@@ -438,7 +459,6 @@
 
     <button class="sticky-contact-btn" id="openContactBtn">💬 Liên hệ tư vấn</button>
     
-    <!-- Thêm nút MiniGame mới ở đây -->
     <a href="https://forms.gle/W822aZtwBpWULkeb8" target="_blank" class="sticky-contact-btn minigame-btn" id="miniGameBtn">🎁 MiniGame</a>
     
     <div class="main-wrapper">
