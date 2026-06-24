@@ -180,7 +180,7 @@
 
         window.onload = function() {
             fetchVPSData();
-            apiInterval = setInterval(fetchVPSData, 2000); // Cập nhật liên tục mỗi 2 giây
+            apiInterval = setInterval(fetchVPSData, 500); // Cập nhật liên tục mỗi 2 giây
         };
 
         function switchTab(event, blockId, symbol) {
@@ -257,8 +257,7 @@
                 console.error("Lỗi kết nối DataFeed VPS:", err);
             }
         }
-    </script>
-    <script>
+    
         let currentSymbol = 'VN30F1M';
     
         // 1. Hàm chuyển tab cơ bản
