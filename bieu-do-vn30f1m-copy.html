@@ -217,38 +217,38 @@
 
     // --- Xử lý WebSocket Bước giá ---
     function initOrderBookSocket() {
-        // 1. Khởi tạo kết nối Socket.io
+        // 1. Kết nối tới Base URL của VPS
         const socket = io("https://tradingviewrealtime.vps.com.vn", {
             transports: ['websocket'],
-            path: '/socket.io'
+            path: '/socket.io',
+            reconnection: true
         });
     
         socket.on('connect', () => {
-            console.log("Đã kết nối thành công tới server VPS!");
-            // 2. Đăng ký kênh (Subscribe) mã chứng khoán
-            // Bạn cần đổi 'VN30F1M' thành biến currentSymbol
-            socket.emit('subscribe', { symbol: currentSymbol }); 
+            console.log("Kết nối thành công với SID mới!");
+            
+            // 2. Gửi lệnh đăng ký mã
+            // Dựa trên phân tích app VPS, lệnh thường là emit một sự kiện 'sub'
+            socket.emit('sub', { symbol: currentSymbol });
         });
     
-        // 3. Lắng nghe sự kiện dữ liệu (Tên sự kiện tùy thuộc vào cấu trúc của VPS)
-        // Bạn hãy theo dõi tab "Messages" trong F12, nếu thấy tên sự kiện là 'data', 'tick', hay 'orderbook' 
-        // thì thay vào chỗ 'message' bên dưới.
+        // 3. Lắng nghe dữ liệu về
+        // Mẹo: Hãy mở tab Console trong F12, nếu thấy dữ liệu hiện ra, bạn sẽ biết tên sự kiện (vd: 'tick', 'data')
         socket.on('message', (data) => {
-            // Đây là nơi xử lý dữ liệu trả về
+            console.log("Dữ liệu nhận về:", data);
             updateOrderBookUI(data);
         });
-    
-        socket.on('disconnect', () => {
-            console.log("Mất kết nối, đang thử lại...");
+        
+        // Nếu VPS gửi dữ liệu qua một tên sự kiện khác, hãy thử thay 'message' bằng 'data' hoặc 'orderbook'
+        socket.on('data', (data) => {
+            updateOrderBookUI(data);
         });
     }
     
     function updateOrderBookUI(data) {
-        // Debug để biết cấu trúc dữ liệu VPS trả về là gì
-        console.log("Dữ liệu nhận được:", data); 
-    
-        // Giả sử sau khi debug, bạn thấy data có dạng { asks: [...], bids: [...] }
-        if (data && data.asks && data.bids) {
+        // Kiểm tra cấu trúc dữ liệu thực tế tại đây
+        // Dữ liệu từ VPS thường nằm trong data.bids và data.asks
+        if (data && data.bids && data.asks) {
             document.getElementById('ob_asks').innerHTML = data.asks.slice(0, 5)
                 .map(i => `Bán: ${i.price} - ${i.vol}`).join('<br>');
             document.getElementById('ob_bids').innerHTML = data.bids.slice(0, 5)
