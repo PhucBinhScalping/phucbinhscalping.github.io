@@ -45,6 +45,32 @@
         #trade-history-container { height: 200px; overflow-y: auto; border: 1px solid #ddd; background: #fff; border-radius: 4px; }
         .btn-add { cursor: pointer; padding: 10px 15px; background: #e0e0e0; border: none; font-weight: bold; margin-left: 10px; }
         .close-btn { margin-left: 8px; padding: 0 5px; border-radius: 50%; background: #ffcccc; cursor: pointer; }
+        .content-container {
+            display: flex; /* BẮT BUỘC ĐỂ SIDEBAR NẰM PHẢI */
+            flex-direction: row; /* Đảm bảo xếp hàng ngang */
+            width: 100%;
+            height: calc(100% - 100px);
+        }
+
+        .tab-content-block {
+            flex: 1; /* BẮT BUỘC ĐỂ BIỂU ĐỒ CHIẾM HẾT KHOẢNG TRỐNG */
+            height: 100%;
+            display: none; /* Ẩn mặc định */
+        }
+
+        .tab-content-block.active {
+            display: flex; /* Hiện khi active */
+        }
+
+        .sidebar-section {
+            width: 320px;
+            flex-shrink: 0; /* Không cho sidebar bị co lại */
+        }
+        .chart-section {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
     </style>
 </head>
 <body>
@@ -74,25 +100,14 @@
 </div>
 
 
+
 <div class="tab-menu" id="mainTabMenu">
-    <button class="tab-item active" onclick="switchTab(event, 'block_vn30f1m_5m', 'VN30F1M')">M5</button>
-    <button class="tab-item" onclick="switchTab(event, 'block_vn30f1m_15m', 'VN30F1M')">M15</button>
-    <button class="tab-item" onclick="switchTab(event, 'block_vnindex', 'VN30F1M')">Ngày</button>
     <button class="btn-add" onclick="addNewChart()">+ Thêm biểu đồ</button>
 </div>
 
 
 <div class="content-container">
-    <div id="block_vn30f1m_5m" class="tab-content-block active">
-        <div class="chart-section"><iframe src="https://chart.vps.com.vn/tv/?symbol=VN30F1M&allowFullscreen=true&resolution=5&lang=vi&theme=light"></iframe></div>
-    </div>
-    <div id="block_vn30f1m_15m" class="tab-content-block">
-        <div class="chart-section"><iframe src="https://chart.vps.com.vn/tv/?symbol=VN30F1M&allowFullscreen=true&resolution=15&lang=vi&theme=light"></iframe></div>
-    </div>
-    <div id="block_vnindex" class="tab-content-block">
-        <div class="chart-section"><iframe src="https://chart.vps.com.vn/tv/?symbol=VN30F1M&allowFullscreen=true&resolution=D&lang=vi&theme=light"></iframe></div>
-    </div>
-    
+ 
     <div class="sidebar-section">
         <div id="display_symbol" class="vps-widget-header">VN30F1M</div>
         <div id="display_price" class="vps-main-price">---.--</div>
@@ -110,15 +125,21 @@
 
 <script>
     let currentSymbol = "VN30F1M";
-    let apiInterval = null;
+    // Sửa lại window.onload
     window.onload = function() {
+        initApp(); // Chạy cái này đầu tiên
         fetchVPSData();
+        updateOrderBook();
+        fetchTradeHistory();
         apiInterval = setInterval(() => {
             fetchVPSData();
             updateOrderBook();
-        }, 200);
-        updateOrderBook();
+            fetchTradeHistory();
+        }, 3000);
     };
+
+
+
     const symbolMap = { "VN30F1M": "41I1G7000", "VN30F2M": "41I1G8000" };
     
     async function getRefPrice() {
@@ -136,43 +157,22 @@
     async function getPreviousClosePrice(symbol) {
         try {
             const toTime = Math.floor(Date.now() / 1000);
-            const fromTime = toTime - 86400 * 2; // Lấy rộng hơn ra 48h để chắc chắn bao gồm cả ngày hôm trước
-            const url = `https://histdatafeed.vps.com.vn/tradingview/history?symbol=${symbol}&resolution=1&from=${fromTime}&to=${toTime}&countback=1000`;
+            const fromTime = toTime - (86400 * 7); 
+            
+            // Thêm tham số _t để ép lấy dữ liệu mới, không dùng cache
+            const url = `https://histdatafeed.vps.com.vn/tradingview/history?symbol=${symbol}&resolution=D&from=${fromTime}&to=${toTime}&_t=${Date.now()}`;
             
             const response = await fetch(url);
             const data = await response.json();
 
-            if (data && data.s === "ok" && data.t && data.c) {
-                // 1. Chuyển đổi mảng thời gian sang dạng ngày (YYYY-MM-DD)
-                // Chúng ta cần tìm ngày gần nhất mà có dữ liệu (có thể là hôm qua)
-                const timestamps = data.t;
-                const closes = data.c;
-
-                // Tìm timestamp lớn nhất (thời gian mới nhất trong dữ liệu)
-                const latestTime = timestamps[timestamps.length - 1];
-                const latestDate = new Date(latestTime * 1000).toDateString();
-
-                // 2. Tìm giá đóng cửa của ngày cũ nhất (ngày trước ngày mới nhất)
-                // Duyệt ngược từ cuối, bỏ qua tất cả nến của ngày mới nhất, 
-                // nến đầu tiên gặp của ngày cũ hơn chính là ATC hôm trước
-                let prevDate = null;
-                for (let i = timestamps.length - 1; i >= 0; i--) {
-                    const currentDate = new Date(timestamps[i] * 1000).toDateString();
-                    
-                    if (currentDate !== latestDate) {
-                        // Đây là ngày hôm trước
-                        if (!prevDate) prevDate = currentDate; // Ghi nhận ngày đầu tiên tìm thấy
-                        
-                        if (currentDate === prevDate) {
-                            // Nến mới nhất của ngày hôm trước chính là giá đóng cửa (ATC)
-                            return parseFloat(closes[i]);
-                        }
-                    }
-                }
+            if (data && data.s === "ok" && data.c && data.c.length >= 2) {
+                // Lấy nến áp chót (phiên trước đó)
+                const prevClose = data.c[data.c.length - 2];
+                return parseFloat(prevClose);
             }
             return null;
         } catch (e) {
-            console.error("Lỗi lấy giá từ history:", e);
+            console.error("Lỗi lấy giá tham chiếu:", e);
             return null;
         }
     }
@@ -315,39 +315,99 @@
 
 
 
-
-    // Lưu trạng thái vào localStorage
-    function saveState() {
+    // Hàm lưu (đảm bảo không lưu giá trị undefined)
+    function saveAppState() {
         const tabs = [];
-        document.querySelectorAll('.tab-item').forEach(tab => {
-            // Chỉ lưu các tab có mã (bỏ qua nút "Thêm biểu đồ")
-            if (!tab.classList.contains('btn-add')) {
-                tabs.push({
-                    symbol: tab.innerText.replace('×', '').trim(),
-                    id: tab.getAttribute('onclick')?.match(/'([^']+)'/)?.[1]
-                });
-            }
+        document.querySelectorAll('.tab-item:not(.btn-add)').forEach(t => {
+            tabs.push({
+                text: t.getAttribute('data-symbol'), // Lấy mã đã lưu trong tab
+                id: t.getAttribute('data-id')
+            });
         });
-        localStorage.setItem('savedTabs', JSON.stringify(tabs));
-        localStorage.setItem('currentSymbol', currentSymbol);
+        
+        const state = {
+            tabs: tabs,
+            activeTabId: document.querySelector('.tab-content-block.active')?.id,
+            currentSymbol: currentSymbol
+        };
+        localStorage.setItem('appData', JSON.stringify(state));
     }
 
-    // Khôi phục trạng thái khi load trang
-    function loadState() {
-        const savedTabs = JSON.parse(localStorage.getItem('savedTabs'));
-        const savedSymbol = localStorage.getItem('currentSymbol');
+    // Hàm vẽ tab (Sửa logic truyền tham số)
+    function createTab(symbol, id, isActive = false) {
+        // 1. Kiểm tra symbol kỹ hơn, tránh bị 'undefined' string
+        const sym = (symbol && symbol !== 'undefined' && symbol !== 'null') ? symbol : "VN30F1M";
         
-        if (savedTabs && savedTabs.length > 0) {
-            // Xóa các tab mặc định để load lại từ localStorage
-            document.getElementById("mainTabMenu").innerHTML = '<button class="btn-add" onclick="addNewChart()">+ Thêm biểu đồ</button>';
-            document.querySelectorAll('.tab-content-block').forEach(b => b.remove());
-            
-            savedTabs.forEach(t => {
-                // Tái tạo lại các tab đã lưu
-                // ... (bạn có thể copy logic tạo tab từ hàm addNewChart vào đây)
-            });
+        // 2. Tạo tab
+        const tab = document.createElement("button");
+        tab.className = "tab-item" + (isActive ? " active" : "");
+        tab.setAttribute('data-id', id);
+        tab.setAttribute('data-symbol', sym);
+        tab.innerHTML = `${sym} <span class="close-btn" onclick="removeTab(event, '${id}')">×</span>`;
+        tab.onclick = (e) => { if(e.target.tagName !== 'SPAN') switchTab(e, id, sym); };
+        
+        const addBtn = document.querySelector(".btn-add");
+        document.getElementById("mainTabMenu").insertBefore(tab, addBtn);
+
+        // 3. Tạo khối nội dung
+        const div = document.createElement("div");
+        div.id = id;
+        div.className = "tab-content-block" + (isActive ? " active" : "");
+        div.innerHTML = `<div class="chart-section"><iframe src="https://chart.vps.com.vn/tv/?symbol=${sym}&resolution=D&theme=light"></iframe></div>`;
+        
+        // 4. Chèn an toàn vào content-container
+        const container = document.querySelector(".content-container");
+        const sidebar = document.querySelector(".sidebar-section"); // Lưu ý: Nếu có 2 cái, nó chỉ lấy cái đầu tiên
+        
+        if (sidebar) {
+            container.insertBefore(div, sidebar);
+        } else {
+            container.appendChild(div);
         }
-        if (savedSymbol) currentSymbol = savedSymbol;
+    }
+
+
+
+    // Cập nhật hàm addNewChart
+    function addNewChart() {
+        const id = "c" + Date.now();
+        // Đảm bảo lấy đúng symbol hiện tại
+        const sym = currentSymbol || "VN30F1M"; 
+        createTab(sym, id, true);
+        saveAppState();
+    }
+
+    // Cập nhật loadState
+    function loadState() {
+        const saved = JSON.parse(localStorage.getItem('appData'));
+        if (!saved || !saved.tabs || saved.tabs.length === 0) {
+            createTab("VN30F1M", "c1", true); // Tạo tab đầu tiên nếu chưa có gì
+            return;
+        }
+        saved.tabs.forEach(t => createTab(t.symbol, t.id, t.id === saved.activeTabId));
+        currentSymbol = saved.currentSymbol || "VN30F1M";
+    }
+
+    // Hàm khởi tạo khi load trang
+    function initApp() {
+        const saved = JSON.parse(localStorage.getItem('appData'));
+        
+        if (saved && saved.tabs && saved.tabs.length > 0) {
+            // Nếu có dữ liệu cũ, vẽ lại từ localStorage
+            saved.tabs.forEach(t => createTab(t.symbol, t.id, t.id === saved.activeTabId));
+            currentSymbol = saved.currentSymbol;
+        } else {
+            // Nếu mới hoàn toàn, tạo 1 tab mặc định
+            createTab("VN30F1M", "c_default", true);
+        }
+    }
+
+    // Hàm xóa tab
+    function removeTab(e, id) {
+        e.stopPropagation();
+        document.getElementById(id).remove();
+        e.target.parentElement.remove();
+        saveAppState(); // Lưu lại ngay sau khi xóa
     }
 
 
@@ -355,74 +415,61 @@
 
 
     function switchTab(e, blockId, symbol) {
-        // 1. Cập nhật nút tab
         document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
         e.currentTarget.classList.add('active');
+        document.querySelectorAll('.tab-content-block').forEach(b => b.classList.remove('active'));
+        document.getElementById(blockId).classList.add('active');
         
-        // 2. Cập nhật block hiển thị
-        document.querySelectorAll('.tab-content-block').forEach(block => block.classList.remove('active'));
-        const targetBlock = document.getElementById(blockId);
-        if (targetBlock) {
-            targetBlock.classList.add('active');
-        }
+        currentSymbol = symbol; 
+        document.getElementById('display_symbol').innerText = symbol; // Cập nhật tên mã
         
-        // 3. Cập nhật mã và dữ liệu
-        currentSymbol = symbol;
-        document.getElementById('display_symbol').innerText = currentSymbol;
-        
-        // Cập nhật lại dữ liệu sidebar
+        // Gọi lại các hàm cập nhật
         fetchVPSData();
         updateOrderBook();
         fetchTradeHistory();
-        saveState();
+        saveAppState(); 
     }
 
-    function updateAll() {
+    // Thêm từ khóa 'async' vào đầu hàm để có thể dùng 'await'
+    async function updateAll() {
         const input = document.getElementById('symbolInput').value.toUpperCase();
         if (!input) return;
         
         currentSymbol = input;
+        
+        // 1. Cập nhật Sidebar và Mã trên tab
         document.getElementById('display_symbol').innerText = currentSymbol;
         
-        // 1. Cập nhật tên trên Tab đang active
+        // Cập nhật giá tham chiếu mới nhất từ API
+        const refPrice = await getPreviousClosePrice(currentSymbol);
+        document.getElementById('val_prev').innerText = refPrice ? refPrice.toLocaleString() : "---.--";
+        
+        // 2. Cập nhật tên trên Tab đang active
         const activeTab = document.querySelector('.tab-item.active');
         if (activeTab) {
-            // Giữ lại nút đóng (close-btn) nếu có, chỉ thay đổi text mã
             const closeBtn = activeTab.querySelector('.close-btn');
             activeTab.innerText = currentSymbol; 
-            if (closeBtn) {
-                activeTab.appendChild(closeBtn);
-            }
+            if (closeBtn) activeTab.appendChild(closeBtn);
+            activeTab.setAttribute('data-symbol', currentSymbol); // Lưu mã vào attribute để lưu state chuẩn
         }
         
-        // 2. Cập nhật iframe của tab đang active
+        // 3. Cập nhật iframe
         const activeIframe = document.querySelector('.tab-content-block.active iframe');
         if (activeIframe) {
-            // Cập nhật lại URL với mã mới
-            activeIframe.src = `https://chart.vps.com.vn/tv/?symbol=${currentSymbol}&resolution=5&theme=light`;
+            activeIframe.src = `https://chart.vps.com.vn/tv/?symbol=${currentSymbol}&resolution=D&theme=light`;
         }
         
+        // 4. Các hàm cập nhật dữ liệu realtime
         fetchVPSData(); 
         updateOrderBook(); 
         fetchTradeHistory();
-        saveState();
+        
+        // 5. Lưu trạng thái
+        saveAppState();
     }
+    
 
-
-    function addNewChart() {
-        const id = "c" + Date.now();
-        const tab = document.createElement("button");
-        tab.className = "tab-item";
-        tab.innerHTML = `${currentSymbol} <span class="close-btn" onclick="this.parentElement.remove(); document.getElementById('${id}').remove()">×</span>`;
-        tab.onclick = (e) => { if(e.target.tagName !== 'SPAN') switchTab(e, id, currentSymbol); };
-        document.getElementById("mainTabMenu").insertBefore(tab, document.querySelector(".btn-add"));
-        const div = document.createElement("div");
-        div.id = id; div.className = "tab-content-block";
-        div.innerHTML = `<div class="chart-section"><iframe src="https://chart.vps.com.vn/tv/?symbol=${currentSymbol}&resolution=5&theme=light"></iframe></div>`;
-        document.querySelector(".content-container").insertBefore(div, document.querySelector(".sidebar-section"));
-    }
-
-    setInterval(() => { fetchVPSData(); updateOrderBook(); fetchTradeHistory();saveState(); }, 3000);
+    setInterval(() => { fetchVPSData(); updateOrderBook(); fetchTradeHistory();saveState();saveAppState(); }, 3000);
     updateAll();
 </script>
 </body>
