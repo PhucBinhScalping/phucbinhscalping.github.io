@@ -163,23 +163,55 @@
 
 <div class="header" style="display: flex; justify-content: space-between; align-items: center; padding: 0 20px;">
     
-    <!-- Nhóm bên trái: Nhập mã và Cập nhật -->
     <div class="input-group" style="display: flex; align-items: center; gap: 10px;">
         <label for="symbolInput"><strong>Nhập mã:</strong></label>
         <input type="text" id="symbolInput" placeholder="VD: VN30F1M" onkeypress="if(event.key==='Enter') updateAll()">
         <button onclick="updateAll()">Cập nhật</button>
-        <span style="font-size: 0.9em; color: #555;">
-            <em>Để đồng bộ bước giá và lịch sử khớp cần cập nhật mã</em>
-        </span>
     </div>
 
+    <div style="display: flex; gap: 5px; align-items: center;">
+        <button onclick="toggleInstructions()" style="padding: 5px 10px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold;">
+            Hướng dẫn mở biểu đồ đã lưu từ VPS
+        </button>
+        <input type="text" id="uidInput" placeholder="User ID" style="width: 70px; padding: 4px;">
+        <input type="text" id="sessInput" placeholder="Token" style="width: 70px; padding: 4px;">
+        
+        <button onclick="syncAuthData()" style="padding: 5px 10px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold;">
+            Nhập
+        </button>
+    </div>
 
+    <div style="display: flex; gap: 10px;">
+        <button onclick="window.open('https://banggia.vps.com.vn/chung-khoan/VN30/', '_blank')" 
+                style="background-color: #00c853; color: white; border: none; padding: 5px 10px; cursor: pointer; font-weight: bold; border-radius: 4px;">
+            Đăng nhập VPS
+        </button>
 
-    <!-- Nhóm bên phải: Nút mở tài khoản -->
-    <button onclick="window.open('https://openaccount.vps.com.vn/linktosmo/?MKTID=BOR5', '_blank')"
-            style="background-color: #ffb700; border: none; padding: 5px 10px; cursor: pointer; font-weight: bold; border-radius: 4px;">
-        Mở tài khoản VPS tại đây
-    </button>
+        <button onclick="window.open('https://openaccount.vps.com.vn/linktosmo/?MKTID=BOR5', '_blank')"
+                style="background-color: #ffb700; border: none; padding: 5px 10px; cursor: pointer; font-weight: bold; border-radius: 4px;">
+            Mở tài khoản
+        </button>
+    </div>
+</div>
+
+<div id="instructionsPanel" style="display: none; position: fixed; top: 39%; left: 50%; transform: translate(-50%, -50%); width: 800px; background: white; border: 1px solid #ccc; padding: 20px; z-index: 9999; box-shadow: 0 10px 20px rgba(0,0,0,0.2); border-radius: 12px; max-height: 80vh; overflow-y: auto;">
+    <strong style="font-size: 16px;">Hướng dẫn lấy token:</strong>
+    <p style="font-size: 13px; margin-bottom: 5px;">Website hiện chỉ là trung gian. Để load các biểu đồ đã lưu bạn cần đăng nhập vào VPS để lấy token.</p>
+    <p style="font-size: 13px; margin-bottom: 5px; margin-top: 10px;">1. Đăng nhập vào VPS.</p>
+    
+    <p style="font-size: 13px; margin-bottom: 5px;">2. Chọn 1 cổ phiếu bất kỳ để mở biểu đồ<b>Network</b>.</p>
+    <img src="huong-dan1.png" alt="Hướng dẫn 1" style="width: 100%; border: 1px solid #eee; margin-bottom: 10px; border-radius: 4px;">
+
+    <p style="font-size: 13px; margin-bottom: 5px;">3. Bấm mở biểu đồ sang trang mới <b>"getlist"</b>.</p>
+    <img src="huong-dan2.png" alt="Hướng dẫn 2" style="width: 100%; border: 1px solid #eee; margin-bottom: 10px; border-radius: 4px;">
+    
+    <p style="font-size: 13px;">4. Copy token từ sau dấu = đến dấu &</p>
+    <img src="huong-dan3.png" alt="Hướng dẫn 3" style="width: 100%; border: 1px solid #eee; margin-bottom: 10px; border-radius: 4px;">
+
+    <p style="font-size: 13px;">5. Nhập TK của bạn và dán token.</p>
+    <img src="huong-dan5.png" alt="Hướng dẫn 5" style="width: 100%; border: 1px solid #eee; margin-bottom: 10px; border-radius: 4px;">
+    
+    <button onclick="toggleInstructions()" style="width: 100%; margin-top: 15px; padding: 10px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; font-weight: bold;">Đóng</button>
 </div>
 
 
@@ -594,32 +626,41 @@
     }
 
 
-
+    // Biến toàn cục để lưu trữ thông tin đăng nhập
+    let globalUserID = "";
+    let globalSession = "";
 
     // Hàm vẽ tab (Sửa logic truyền tham số)
     function createTab(symbol, id, isActive = false) {
-        // 1. Kiểm tra symbol
         const sym = (symbol && symbol !== 'undefined' && symbol !== 'null') ? symbol : "VN30F1M";
         
-        // 2. Tạo tab
+        // --- THAY ĐỔI TẠI ĐÂY ---
+        // Sử dụng biến toàn cục thay vì lấy trực tiếp từ ô input
+        // Điều này giúp tab luôn sử dụng thông tin mới nhất đã được "Ghi dữ liệu"
+        let chartUrl = `https://web5.vps.com.vn/?sym=${sym}&interval=D&theme=light&lang=vi`;
+        
+        if (globalUserID && globalSession) {
+            chartUrl += `&u=${globalUserID}&s=${globalSession}&loadLastChart=true`;
+        }
+        // ------------------------
+        
+        // Tạo tab
         const tab = document.createElement("button");
         tab.className = "tab-item" + (isActive ? " active" : "");
         tab.setAttribute('data-id', id);
         tab.setAttribute('data-symbol', sym);
-        // Trong hàm createTab
         tab.innerHTML = `<span class="tab-title">${sym}</span> <span class="close-btn" onclick="removeTab(event, '${id}')">×</span>`;
         tab.onclick = (e) => { if(e.target.tagName !== 'SPAN') switchTab(e, id, sym); };
         
         const addBtn = document.querySelector(".btn-add");
         document.getElementById("mainTabMenu").insertBefore(tab, addBtn);
 
-        // 3. Tạo khối nội dung
+        // Tạo khối nội dung
         const div = document.createElement("div");
         div.id = id;
         div.className = "tab-content-block" + (isActive ? " active" : "");
-        div.innerHTML = `<div class="chart-section"><iframe src="https://web5.vps.com.vn/?sym=${sym}&interval=D&theme=light&lang=vi"></iframe></div>`;
+        div.innerHTML = `<div class="chart-section"><iframe src="${chartUrl}"></iframe></div>`;
         
-        // 4. Chèn vào container
         const container = document.querySelector(".content-container");
         const sidebar = document.querySelector(".sidebar-section");
         
@@ -629,14 +670,8 @@
             container.appendChild(div);
         }
 
-        // --- VỊ TRÍ ĐẶT LỆNH CUỘN ---
-        // Chỉ cuộn khi tab đó được kích hoạt ngay lúc tạo
         if (isActive) {
-            // Cuộn vào nội dung tab (div)
             div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            
-            // Hoặc nếu bạn muốn cuộn đến Tab Button trên menu, hãy dùng:
-            // tab.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     }
 
@@ -803,26 +838,18 @@
 
     async function updateAll() {
         const inputEl = document.getElementById('symbolInput');
-        if (!inputEl) return;
+        if (!inputEl || !inputEl.value.trim()) return;
         
-        const input = inputEl.value.trim().toUpperCase();
-        if (!input) return;
-        
-        inputEl.value = input;
-        currentSymbol = input;
+        currentSymbol = inputEl.value.trim().toUpperCase();
         
         // 1. Lấy giá tham chiếu
         const refPrice = await getPreviousClosePrice(currentSymbol);
-        
-        // --- TỐI ƯU TẠI ĐÂY ---
-        // Gán giá trị vừa lấy được vào biến toàn cục ngay lập tức
         globalRefPrice = refPrice; 
         
-        // Cập nhật UI
+        // 2. Cập nhật UI (Giữ nguyên)
         document.getElementById('display_symbol').innerText = currentSymbol;
         document.getElementById('val_prev').innerText = refPrice ? refPrice.toLocaleString() : "---.--";
         
-        // 2. Cập nhật tên trên Tab
         const activeTab = document.querySelector('.tab-item.active');
         if (activeTab) {
             const titleSpan = activeTab.querySelector('.tab-title');
@@ -830,23 +857,67 @@
             activeTab.setAttribute('data-symbol', currentSymbol);
         }
 
-        // 3. Cập nhật iframe
+        // 3. Cập nhật iframe: SỬ DỤNG BIẾN TOÀN CỤC
         const activeIframe = document.querySelector('.tab-content-block.active iframe');
         if (activeIframe) {
-            activeIframe.src = `https://web5.vps.com.vn/?sym=${currentSymbol}&interval=D&theme=light&lang=vi`;
+            let newUrl = `https://web5.vps.com.vn/?sym=${currentSymbol}&interval=D&theme=light&lang=vi`;
+            
+            // KIỂM TRA BIẾN TOÀN CỤC
+            if (globalUserID && globalSession) {
+                newUrl += `&u=${globalUserID}&s=${globalSession}`;
+            }
+            activeIframe.src = newUrl;
         }
         
         // 4. Các hàm cập nhật dữ liệu realtime
-        // Vì globalRefPrice đã có giá trị, fetchVPSData sẽ KHÔNG gọi lại getPreviousClosePrice() nữa
         fetchVPSData(); 
         updateOrderBook(); 
         fetchTradeHistory();
         
-        // 5. Lưu trạng thái
         debouncedSave();
     }
 
 
+    function syncAuthData() {
+        const uidInput = document.getElementById('uidInput');
+        const sessInput = document.getElementById('sessInput');
+        
+        const uVal = uidInput.value.trim();
+        const sVal = sessInput.value.trim();
+        
+        if (!uVal || !sVal) {
+            alert("Vui lòng nhập đầy đủ User ID và Token!");
+            return;
+        }
+
+        // 1. Gán vào biến toàn cục
+        globalUserID = uVal;
+        globalSession = sVal;
+
+        // 2. Cập nhật URL biểu đồ
+        const activeIframe = document.querySelector('.tab-content-block.active iframe');
+        if (activeIframe) {
+            const activeTab = document.querySelector('.tab-item.active');
+            const sym = activeTab ? activeTab.getAttribute('data-symbol') : "VN30F1M";
+            activeIframe.src = `https://web5.vps.com.vn/?sym=${sym}&interval=D&theme=light&lang=vi&u=${globalUserID}&s=${globalSession}&loadLastChart=true`;
+        }
+
+        // 3. XÓA DỮ LIỆU Ở Ô NHẬP ĐỂ ĐẢM BẢO AN TOÀN
+        uidInput.value = "";
+        sessInput.value = "";
+        
+        alert("Đã ghi dữ liệu thành công! Thông tin đã được xóa khỏi ô nhập.");
+    }
+
+
+    function toggleInstructions() {
+        const panel = document.getElementById('instructionsPanel');
+        if (panel.style.display === 'none' || panel.style.display === '') {
+            panel.style.display = 'block';
+        } else {
+            panel.style.display = 'none';
+        }
+    }
 
     window.addEventListener('DOMContentLoaded', initApp);
     
