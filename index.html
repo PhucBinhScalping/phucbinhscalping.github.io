@@ -71,8 +71,27 @@
         .buttons-row { display: flex; gap: 20px; justify-content: center; margin-top: auto; margin-bottom: 15px; }
         .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 30px; border-radius: 30px; font-size: 18px; font-weight: bold; text-decoration: none; transition: transform 0.2s, background-color 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.15); cursor: pointer; border: none; }
         .btn:hover { transform: scale(1.05); }
-        .btn-download { background-color: #29b6f6; color: #ffffff; }
-        .btn-youtube { background-color: #ff0000; color: #ffffff; }
+        .btn-tailieu { background-color: #2ecc71; color: #ffffff; } /* Màu xanh lá thân thiện cho tài liệu */
+        .btn-download { background-color: #007bff; color: #ffffff; } /* Màu xanh dương tiêu chuẩn cho nút tải về */
+        .btn-youtube { background-color: #ff0000; color: #ffffff; }  /* Màu đỏ thương hiệu YouTube */
+        .buttons-row { 
+            display: flex; 
+            gap: 10px;               /* Thu nhỏ khoảng cách giữa các nút một chút để vừa màn hình nhỏ */
+            justify-content: center; 
+            margin-top: auto; 
+            margin-bottom: 15px; 
+            flex-wrap: nowrap;       /* BẮT BUỘC: Không cho phép các nút tự xuống hàng */
+            width: 100%;             /* Đảm bảo khung hàng ngang chiếm hết chiều rộng hiển thị */
+        }
+
+        /* Thêm hoặc cập nhật đoạn này để các nút tự co giãn chữ vừa vặn trên điện thoại */
+        .buttons-row .btn {
+            flex: 1;                 /* Chia đều tỉ lệ rộng cho cả 3 nút */
+            padding: 12px 8px;       /* Giảm padding hai bên để chữ không bị tràn hoặc nhảy dòng nội bộ */
+            font-size: 14px;         /* Hạ size chữ xuống một chút (chuẩn mobile) để toàn bộ text nằm đẹp trên một hàng */
+            text-align: center;
+            white-space: nowrap;     /* Giữ chữ trong nút không bị ngắt thành 2 dòng */
+        }
         
         /* --- NÚT ĐÃ CHỈNH SỬA --- */
         .btn-link-vps { 
@@ -206,6 +225,9 @@
                     </ul>
 
                     <div class="buttons-row">
+                        <a href="https://drive.google.com/drive/folders/1gCgzvtqtxCkqZg8iAJCmRj1TYUFxlgOt?usp=sharing" target="_blank" class="btn btn-tailieu">
+                            Tài liệu hướng dẫn
+                        </a>
                         <a href="https://drive.google.com/file/d/1NPeIdaIEjnSWXf_H2daNF1UNglWtJ6c1/view?usp=drive_link" target="_blank" class="btn btn-download">
                             Tải Bot
                         </a>
