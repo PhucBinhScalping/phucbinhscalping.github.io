@@ -304,83 +304,85 @@
 
 
 
-    async function fetchVPSData(symbol, signal = null) {
-        const data = await getBasicPrice(symbol, signal);
-        if (!data) return;
+    // Biến lưu vết giá cũ của riêng mag_price_display để chặn render đè DOM thừa
+    let lastMagPriceText = ""; 
+
+    function fetchVPSData(symbol, signal = null) {
+        const cleanSymbol = symbol ? symbol.trim().toUpperCase() : "VN30F1M";
+        const info = symbolMap[cleanSymbol];
+        let url = "";
         
-        // 1. Lưu giá tham chiếu cố định (Chỉ chạy 1 lần đầu)
-        if (globalClosePrice === null && data.closePrice && data.closePrice > 0) {
-            globalClosePrice = data.closePrice;
-        }
-        const refPrice = globalClosePrice !== null ? globalClosePrice : (data.closePrice || 0);
+        if (info && info.type === 'PS') url = `https://bgapidatafeed.vps.com.vn/getpsalldatalsnapshot/${info.value}`;
+        else if (info && info.type === 'INDEX') url = `https://bgapidatafeed.vps.com.vn/getlistindexdetail/${info.value}`;
+        else url = `https://bgapidatafeed.vps.com.vn/getliststockdata/${cleanSymbol}`;
 
-        const { lastPrice } = data;
-        const magPriceEl = document.getElementById('mag_price_display'); 
+        // Sử dụng fetch thuần không await để xử lý bất đồng bộ ở tầng thấp nhất (Mức mạng)
+        fetch(url, { signal })
+            .then(response => response.json())
+            .then(data => {
+                const item = Array.isArray(data) ? data[0] : data;
+                if (!item) return;
 
-        // CHẾ ĐỘ 1: TRONG PHIÊN ATO / ATC (lastPrice = 0)
-        if (!lastPrice || lastPrice === 0) {
-            let atoPrice = refPrice;
-            
-            // Đọc nhanh bảng bước giá
-            const firstRow = document.querySelector('#ob-body tr');
-            if (firstRow) {
-                const bidPrice = parseFloat(firstRow.children[1]?.innerText);
-                const askPrice = parseFloat(firstRow.children[2]?.innerText);
-                if (bidPrice > 0) atoPrice = bidPrice;
-                else if (askPrice > 0) atoPrice = askPrice;
-            }
-
-            const fallbackPriceStr = atoPrice.toFixed(2);
-            
-            // ĐẨY GIÁ THÔ RA MÀN HÌNH TRƯỚC (Ưu tiên hiển thị số nhanh nhất)
-            if (dispPriceEl) dispPriceEl.innerText = fallbackPriceStr;
-            if (magPriceEl) magPriceEl.innerText = fallbackPriceStr;
-            
-            if (dispChangeEl && refPrice > 0) {
-                const atoDiff = atoPrice - refPrice;
-                const pct = (atoDiff / refPrice) * 100;
-                const prefix = atoDiff > 0 ? '+' : '';
-                dispChangeEl.innerText = `${prefix}${atoDiff.toFixed(2)} / (${pct.toFixed(2)}%)`;
-            }
-
-            // XỬ LÝ MÀU SAU (Gọi bất đồng bộ qua setTimeout để giải phóng luồng chính ngay lập tức)
-            setTimeout(() => {
-                renderPriceColor(atoPrice, refPrice, dispPriceEl, magPriceEl);
-                if (dispChangeEl) {
-                    const atoDiff = atoPrice - refPrice;
-                    dispChangeEl.style.color = atoDiff > 0 ? '#089981' : (atoDiff < 0 ? '#f23645' : '#ffab00');
+                // 1. Trích xuất giá cực nhanh
+                let lastPrice = 0, closePrice = 0;
+                if (info?.type === 'INDEX') {
+                    lastPrice = parseFloat(item.cIndex) || 0;
+                    closePrice = parseFloat(item.oIndex) || lastPrice;
+                } else if (info?.type === 'PS') {
+                    lastPrice = parseFloat(item.lastPrice) || 0;
+                    closePrice = parseFloat(item.closePrice) || 0;
+                } else {
+                    const rawLast = parseFloat(item.lastPrice) || 0;
+                    const rawClose = parseFloat(item.closePrice) || 0;
+                    lastPrice = rawLast > 1000 ? rawLast / 1000 : rawLast;
+                    closePrice = rawClose > 1000 ? rawClose / 1000 : rawClose;
                 }
-            }, 0);
-            
-            lastKnownPrice = 0; 
-            return; 
-        }
 
-        // CHẾ ĐỘ 2: PHIÊN LIÊN TỤC (Có giá khớp thực tế)
-        if (lastKnownPrice === lastPrice) return;
-        lastKnownPrice = lastPrice; 
-        
-        const priceStr = lastPrice.toFixed(2);
+                // 2. Đồng bộ giá tham chiếu cố định (Chạy 1 lần đầu hoặc khi đổi tab)
+                if (globalClosePrice === null && closePrice > 0) {
+                    globalClosePrice = closePrice;
+                }
+                const refPrice = globalClosePrice !== null ? globalClosePrice : (closePrice || 0);
 
-        // ĐẨY GIÁ THÔ LÊN MÀN HÌNH NGAY LẬP TỨC
-        if (dispPriceEl) dispPriceEl.innerText = priceStr;
-        if (magPriceEl) magPriceEl.innerText = priceStr; 
-        
-        if (dispChangeEl) { 
-            const diff = lastPrice - refPrice;
-            const pct = refPrice !== 0 ? (diff / refPrice) * 100 : 0;
-            const prefix = diff > 0 ? '+' : ''; 
-            dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`; 
-        }
+                // 3. Xác định giá hiển thị (Xử lý kịch bản ATO/ATC)
+                let finalPrice = lastPrice;
+                if (!finalPrice || finalPrice === 0) {
+                    finalPrice = refPrice;
+                    const firstRow = document.querySelector('#ob-body tr');
+                    if (firstRow) {
+                        const bidPrice = parseFloat(firstRow.children[1]?.innerText);
+                        const askPrice = parseFloat(firstRow.children[2]?.innerText);
+                        if (bidPrice > 0) finalPrice = bidPrice;
+                        else if (askPrice > 0) finalPrice = askPrice;
+                    }
+                }
 
-        // XỬ LÝ MÀU VÀ PHẦN TRĂM SAU (Chạy ở luồng phụ, không làm chậm quá trình hiển thị số giá)
-        setTimeout(() => {
-            renderPriceColor(lastPrice, refPrice, dispPriceEl, magPriceEl);
-            if (dispChangeEl) {
-                const diff = lastPrice - refPrice;
-                dispChangeEl.style.color = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
-            }
-        }, 0);
+                const priceStr = finalPrice.toFixed(2);
+
+                // TỐI ƯU DOM: Chỉ ghi đè lên màn hình khi giá trị THỰC SỰ thay đổi
+                if (lastMagPriceText !== priceStr) {
+                    lastMagPriceText = priceStr;
+                    
+                    const magPriceEl = document.getElementById('mag_price_display');
+                    if (magPriceEl) magPriceEl.innerText = priceStr;
+                    if (dispPriceEl) dispPriceEl.innerText = priceStr;
+
+                    // 4. Tính toán phần trăm và hiệu ứng màu sắc trực tiếp (Inline)
+                    if (dispChangeEl && refPrice > 0) {
+                        const diff = finalPrice - refPrice;
+                        const pct = (diff / refPrice) * 100;
+                        const prefix = diff > 0 ? '+' : '';
+                        dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`;
+                        
+                        // Đổi màu chữ ngay lập tức
+                        const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
+                        dispChangeEl.style.color = targetColor;
+                        if (magPriceEl) magPriceEl.style.color = targetColor;
+                        if (dispPriceEl) dispPriceEl.style.color = targetColor;
+                    }
+                }
+            })
+            .catch(e => { /* Bỏ qua lỗi Abort ngầm định để tránh crash luồng */ });
     }
 
     const indexList = ["VN30", "VN100", "VN50", "VNINDEX", "HNX", "HNX30", "UPCOM"];
