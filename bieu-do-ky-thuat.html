@@ -120,6 +120,8 @@
             <div id="mag_price_display" class="mag-price" style="color: #ffab00;">---.--</div>
         </div>
         <div class="header-price-group">
+            <div id="display_change" class="vps-change">--.--/(--.--%)</div>
+
         </div>
         <span class="info-label">Tham chiếu</span><span id="val_prev" class="info-value" style='font-size: 18px;color: #d9a000; padding: 2px;'>---.--</span>
         <h4>Bước Giá</h4>
@@ -698,6 +700,7 @@
         debouncedSave();
     }
 
+
     async function switchTab(e, blockId, symbol) {
         const tabItem = e.target ? e.target.closest('.tab-item') : e.currentTarget;
         if (!tabItem || e.target?.classList.contains('close-btn')) return;
@@ -707,7 +710,11 @@
         lastTradeId = "";
         currentTradeSymbol = symbol;
 
-        Object.values(controllers).forEach(c => c?.abort());
+        // Reset các biến giá về trạng thái ban đầu để nạp dữ liệu của tab mới
+        globalClosePrice = null; 
+        lastKnownPrice = 0;      
+        globalRefPrice = null; 
+
         document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
         tabItem.classList.add('active'); 
         document.querySelectorAll('.tab-content-block').forEach(b => b.classList.remove('active'));
@@ -715,7 +722,6 @@
         if(targetBlock) targetBlock.classList.add('active');
 
         currentSymbol = symbol;
-        globalRefPrice = null; 
         const dispSymbol = document.getElementById('display_symbol');
         if (dispSymbol) dispSymbol.innerText = symbol;
 
@@ -724,6 +730,19 @@
             controllers.orderBook = new AbortController();
             controllers.tradeHistory = new AbortController();
             controllers.heavy = new AbortController();
+            
+            // --- SỬA/BỔ SUNG TẠI ĐÂY ---
+            // 1. Lấy giá đóng cửa cũ để làm tham chiếu mốc chuẩn cho mã mới chuyển qua
+            const refPrice = await getPreviousClosePrice(currentSymbol);
+            globalRefPrice = refPrice;
+            
+            // 2. Cập nhật ngay lập tức text hiển thị lên ô "Tham chiếu" trên giao diện giao diện
+            const prevEl = document.getElementById('val_prev');
+            if (prevEl) {
+                prevEl.innerText = refPrice ? refPrice.toFixed(2) : "---.--";
+            }
+            // ----------------------------
+
             await Promise.all([
                 getFullSnapshotData(currentSymbol, controllers.heavy.signal), 
                 fetchVPSData(currentSymbol, controllers.snapshot.signal),
