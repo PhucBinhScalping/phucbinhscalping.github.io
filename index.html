@@ -89,12 +89,25 @@
         .minigame-btn { bottom: 95px !important; background: linear-gradient(135deg, #ff4757, #ff6b81) !important; border-color: #ffffff !important; }
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
-        #idModal .modal-box { max-width: 950px; width: 95%; padding: 30px; }
-        .modal-box { background: #fff; padding: 30px; border-radius: 15px; text-align: center; max-height: 90vh; overflow-y: auto; }
-        .modal-box h3 { margin-top: 0; color: #002060; font-size: 22px; margin-bottom: 20px; }
+        #idModal .modal-box { max-width: 1000px; width: 100%; padding: 30px; }
+        .modal-box { 
+            background: #ffffff; 
+            padding: 30px; /* Tăng từ 25px lên 30px để thoáng hơn */
+            border-radius: 20px; 
+            max-width: 500px; /* Tăng từ 400px lên 500px để hộp thoại to hơn */
+            width: 100%; 
+            text-align: center; 
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3); 
+            transform: scale(0.8); 
+            transition: transform 0.3s ease; 
+            position: relative; 
+            max-height: 90vh; 
+            overflow-y: auto; 
+        }
+        .modal-box h3 { margin-top: 0; color: #002060; font-size: 25px; /* Tăng từ 22px lên 24px để cân đối với khung to */ margin-bottom: 20px; }
         .form-group { margin-bottom: 15px; text-align: left; }
-        .form-group label { display: block; font-weight: bold; color: #002060; margin-bottom: 5px; font-size: 14px; }
-        .form-group input, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #cccccc; border-radius: 8px; font-size: 15px; box-sizing: border-box; font-family: inherit; }
+        .form-group label { display: block; font-weight: bold; color: #002060; margin-bottom: 5px; font-size: 18px; }
+        .form-group input, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #cccccc; border-radius: 8px; font-size: 18px; box-sizing: border-box; font-family: inherit; }
         .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #002060; box-shadow: 0 0 5px rgba(0, 32, 96, 0.2); }
         .btn-submit-form { background-color: #002060; color: #ffffff; width: 100%; padding: 12px; font-size: 16px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.15); margin-bottom: 15px; }
         .btn-close { background-color: #757575; color: #ffffff; font-size: 14px; padding: 8px 25px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; }
@@ -213,7 +226,7 @@
                     <a href="bai-viet/bi-an-duong-dua-phai-sinh-tai-sao-nha-dau-tu-an-5-diem-lai-thang-dam-nguoi-an-30-diem.html" target="_blank" class="blog-card">
                         <img src="bai-viet/bi-an-duong-dua-phai-sinh.jpg" alt="Bí ẩn đường đua phái sinh" class="blog-img">
                         <div class="blog-content">
-                            <h4 class="blog-title">BÍ ẨN ĐƯỜNG ĐUA PHÁI SINH: TẠI SAO NHÀ ĐẦU TƯ ĂN 5 ĐIỂM LẠI "THẠNG ĐẬM" NGƯỜI ĂN 30 ĐIỂM?</h4>
+                            <h4 class="blog-title">BÍ ẨN ĐƯỜNG ĐUA PHÁI SINH: TẠI SAO NHÀ ĐẦU TƯ ĂN 5 ĐIỂM LẠI "THẠNG ĐẬM" NGƯỜI ĂN 30 ĐIỂY?</h4>
                             <p class="blog-excerpt">Trong thị trường chứng khoán phái sinh, có một nghịch lý mà rất nhiều nhà đầu tư từng chứng kiến...</p>
                             <span class="blog-date">📅 Ngày 23/06/2026</span>
                         </div>
@@ -234,11 +247,23 @@
         <div class="modal-box">
             <h3>💬 Đăng Ký Tư Vấn</h3>
             <form action="https://formspree.io/f/xrewzpjl" method="POST">
-                <div class="form-group"><label>Họ và Tên:</label><input type="text" name="Họ Tên" required></div>
-                <div class="form-group"><label>Số điện thoại (Zalo):</label><input type="tel" name="Số Điện Thoại" required></div>
-                <div class="form-group"><label>Địa chỉ Gmail:</label><input type="email" name="Gmail" required></div>
-                <div class="form-group"><label>Nội dung:</label><textarea name="Nội Dung" rows="3" required></textarea></div>
-                <button type="submit" class="btn-submit-form">Gửi Thông Tin</button>
+                <div class="form-group">
+                    <label for="name">Họ và Tên:</label>
+                    <input type="text" id="name" name="Họ Tên" placeholder="Nguyễn Văn A" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Số điện thoại (Zalo):</label>
+                    <input type="tel" id="phone" name="Số Điện Thoại" placeholder="0901234568" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Địa chỉ Gmail:</label>
+                    <input type="email" id="email" name="Gmail" placeholder="name@gmail.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="message">Nội dung cần hỗ trợ:</label>
+                    <textarea id="message" name="Nội Dung Cần Tư Vấn" rows="3" placeholder="Ví dụ: Cài đặt phần mềm..." required></textarea>
+                </div>
+                <button type="submit" class="btn-submit-form">Gửi Thông Tin Cho AD</button>
             </form>
             <button class="btn-close" id="closeContactBtn">Đóng</button>
         </div>
@@ -266,7 +291,15 @@
             const modal = document.getElementById(modalId);
             if(btn) btn.onclick = () => modal.classList.add('active');
             if(close) close.onclick = () => modal.classList.remove('active');
-            window.onclick = (e) => { if(e.target == modal) modal.classList.remove('active'); }
+            
+            // SỬA ĐÚNG KHÚC NÀY: Lắng nghe sự kiện click riêng cho từng modal, tránh bị ghi đè sự kiện
+            if(modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.classList.remove('active');
+                    }
+                });
+            }
         }
         
         setup('openContactBtn', 'closeContactBtn', 'contactModal');
