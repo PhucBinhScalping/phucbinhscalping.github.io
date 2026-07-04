@@ -6,12 +6,13 @@
     <link rel="apple-touch-icon" href="logo.png">
     <meta name="viewport" content="width=1200, initial-scale=1.0">
     <title>Phúc Bình Scalping - Biểu đồ</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         /* Thiết lập nền tảng */
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: sans-serif; overflow: hidden; background: #fff; }
 
         /* Header & Containers */
-        .header { height: 50px; background: #f0f3fa; display: flex; align-items: center; padding: 0 20px; gap: 10px; border-bottom: 1px solid #ddd; }
+        .header { height: 50px; background: #f0f3fa; display: flex; align-items: center; padding: 0 20px; gap: 10px; border-bottom: 1px solid #ddd;margin-top:5px; }
         .content-container { display: flex; position: relative; height: calc(100% - 90px); width: 100%; }
 
         /* Biểu đồ và Sidebar */
@@ -48,20 +49,47 @@
         .info-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; font-size: 13px; }
         .info-label { font-weight: bold; color: #474f66; padding-right: 4px; }
         .info-value { font-family: 'Courier New', monospace; font-weight: 700; font-size: 15px; text-align: right; padding-right: 9px; }
+
+        /* Ô kính lúp soi giá phóng to */
+        .price-magnifier {
+            margin-top: 8px;
+            background: #1c2030;
+            border: 2px dashed #ffb700;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
+        }
+        .price-magnifier .mag-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #848e9c;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 2px;
+        }
+        .price-magnifier .mag-price {
+            font-size: 38px;
+            font-weight: 900;
+            font-family: 'Courier New', monospace;
+            line-height: 1;
+        }
     </style>
 </head>
 <body>
 
 <div class="header">
     <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
-        <a href="index.html" style="color: #ffb700; text-decoration: none; margin-right: 5px;">⬅ Quay lại Trang chủ</a>
-        <button onclick="window.open('https://banggia.vps.com.vn/chung-khoan/derivative-INDEX', '_blank')" style="padding: 4px 8px; font-size: 11px; cursor: pointer; background-color: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold;">Đăng nhập VPS</button>
-        <button onclick="window.open('https://openaccount.vps.com.vn/linktosmo/?MKTID=BOR5', '_blank')" style="padding: 4px 8px; font-size: 11px; cursor: pointer; background-color: #dc3545; color: white; border: none; border-radius: 4px; font-weight: bold;">Mở Tài khoản VPS</button>
+        <a href="index.html" style="color: #ffb700; text-decoration: none; margin-right: 5px;">⬅ Quay lại Trang chủ</a>
+        <button onclick="toggleInstructions()" style="padding: 5px 12px; font-size: 12px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; transition: background 0.3s; white-space: nowrap;">Hướng dẫn đồng bộ</button>
     </div>
     <div style="flex: 2; text-align: center; font-size: 18px; font-weight: bold; color: #ffb700; letter-spacing: 0.5px;">Dữ liệu được lấy trực tiếp từ Công ty Cổ phần Chứng khoán VPS</div>
-    <div style="flex: 1; display: flex; align-items: center; justify-content: flex-end; padding-right: 20px;">
+    <div style="flex: 1; display: flex; align-items: center; justify-content: flex-end; padding-right: 36px; gap: 8px;">
         <span style="font-size: 18px; font-weight: bold; color: #ffb700; white-space: nowrap; margin-right: 10px;">SĐT: 0853.525.379 - ID VPS: BOR5</span>
-        <button onclick="toggleInstructions()" style="padding: 5px 12px; font-size: 12px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; transition: background 0.3s; white-space: nowrap;">Hướng dẫn đồng bộ</button>
+        
+        <button onclick="window.open('https://banggia.vps.com.vn/chung-khoan/derivative-INDEX', '_blank')" style="min-width: 130px; padding: 10px 12px; font-size: 12px; cursor: pointer; background-color: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; white-space: nowrap;">Đăng nhập VPS</button>
+        
+        <button onclick="window.open('https://openaccount.vps.com.vn/linktosmo/?MKTID=BOR5', '_blank')" style="min-width: 130px; padding: 10px 12px; font-size: 12px; cursor: pointer; background-color: #dc3545; color: white; border: none; border-radius: 4px; font-weight: bold; white-space: nowrap;">Mở Tài khoản VPS</button>
     </div>
 </div>
 
@@ -88,8 +116,11 @@
             <button onclick="updateAll()" style="flex: 2; padding: 2px; font-size: 13px; background: #007bff; color: white; cursor: pointer;">Cập nhật</button>
         </div>
         <div class="vps-widget-header" id="display_symbol">VN30F1M</div>
+        <div class="price-magnifier">
+            <span class="mag-label" id="realtimeStatus">Kết nối dữ liệu VPS...</span>
+            <div id="mag_price_display" class="mag-price" style="color: #ffab00;">---.--</div>
+        </div>
         <div class="header-price-group">
-            <div id="display_price" class="vps-main-price">---.--</div>
             <div id="display_change" class="vps-change">--.--/(--.--%)</div>
         </div>
         <span class="info-label">Tham chiếu</span><span id="val_prev" class="info-value" style='font-size: 18px;color: #d9a000; padding: 2px;'>---.--</span>
@@ -131,7 +162,12 @@
     let snapshotCache = {};
     let lastKnownPrice = 0;
     let lastTradeId = ""; 
-    let currentTradeSymbol = ""; // Khai báo biến check mã hiện tại của Lịch sử khớp lệnh
+    let currentTradeSymbol = ""; 
+    let globalClosePrice = null;
+
+    // BỔ SUNG: Các biến toàn cục kiểm soát Socket
+    let socket = null;
+    let currentSubscribedCode = "";
 
     const dispPriceEl = document.getElementById('display_price');
     const dispChangeEl = document.getElementById('display_change');
@@ -168,6 +204,120 @@
             Object.assign(newMap, { "VNINDEX": { type: 'INDEX', value: '10' }, "HNX": { type: 'INDEX', value: '02' } });
             symbolMap = newMap;
         } catch (error) { console.error("Lỗi load map:", error); }
+    }
+
+    // BỔ SUNG: Hàm kiểm tra chính xác mốc thời gian để kích hoạt Socket
+    function shouldUseSocket() {
+        const now = new Date();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const seconds = now.getSeconds();
+        
+        // Đổi thời gian hiện tại ra đơn vị giây tính từ nửa đêm
+        const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+        
+        const socketStartSeconds = 8 * 3600 + 59 * 60 + 51; // 8h59p51s
+        const marketEndSeconds = 15 * 3600;                 // 15h00p00s
+        
+        return (totalSeconds >= socketStartSeconds && totalSeconds < marketEndSeconds);
+    }
+
+    // BỔ SUNG: Hàm khởi tạo và quản lý cổng kết nối dữ liệu Socket trực tuyến
+    function initSocketConnection() {
+        if (socket) return;
+        
+        socket = io("https://bgdatafeed.vps.com.vn", {
+            transports: ["websocket"],
+            path: "/socket.io/"
+        });
+
+        socket.on("connect", () => {
+            const statusEl = document.getElementById('realtimeStatus');
+            if (statusEl) {
+                statusEl.textContent = "● connect";
+                statusEl.style.color = "#0ecb81";
+            }
+            resubscribeSocket();
+        });
+
+        socket.onAny((eventName, data) => {
+            // Chỉ thực thi tiếp nhận gói tin Socket nếu đang trong khung giờ sau 8h59p51s
+            if (!shouldUseSocket()) return;
+
+            try {
+                if (typeof data === 'string') data = JSON.parse(data);
+
+                const info = symbolMap[currentSymbol.toUpperCase()];
+                const targetCode = info?.value || currentSymbol.toUpperCase();
+
+                let target = null;
+                if (data) {
+                    if (data.id === targetCode || data.sym === targetCode || data.code === targetCode) {
+                        target = data;
+                    } else if (Array.isArray(data)) {
+                        target = data.find(item => item.id === targetCode || item.sym === targetCode || item.code === targetCode);
+                    }
+                }
+
+                if (target) {
+                    let rawPrice = target.c || target.p || target.lastPrice || target.price;
+                    if (rawPrice) {
+                        let finalPrice = parseFloat(rawPrice);
+                        if (info?.type !== 'PS' && info?.type !== 'INDEX' && finalPrice > 1000) {
+                            finalPrice = finalPrice / 1000;
+                        }
+
+                        const priceStr = finalPrice.toFixed(2);
+
+                        if (lastMagPriceText !== priceStr && !isNaN(finalPrice) && finalPrice > 0) {
+                            lastMagPriceText = priceStr;
+
+                            const magPriceEl = document.getElementById('mag_price_display');
+                            if (magPriceEl) magPriceEl.innerText = priceStr;
+                            if (dispPriceEl) dispPriceEl.innerText = priceStr;
+
+                            const refPrice = globalRefPrice || globalClosePrice || 0;
+                            if (dispChangeEl && refPrice > 0) {
+                                const diff = finalPrice - refPrice;
+                                const pct = (diff / refPrice) * 100;
+                                const prefix = diff > 0 ? '+' : '';
+                                dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`;
+
+                                const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
+                                dispChangeEl.style.color = targetColor;
+                                if (magPriceEl) magPriceEl.style.color = targetColor;
+                                if (dispPriceEl) dispPriceEl.style.color = targetColor;
+                            }
+                        }
+                    }
+                }
+            } catch (err) {}
+        });
+
+        socket.on("disconnect", () => {
+            const statusEl = document.getElementById('realtimeStatus');
+            if (statusEl) {
+                statusEl.textContent = "○ MẤT KẾT NỐI SÀN";
+                statusEl.style.color = "#f23645";
+            }
+            currentSubscribedCode = "";
+        });
+    }
+
+    // BỔ SUNG: Hàm chuyển đổi luồng đăng ký mã tương ứng khi thay đổi Tab/Mã chứng khoán
+    function resubscribeSocket() {
+        if (!socket || !socket.connected) return;
+        
+        const info = symbolMap[currentSymbol.toUpperCase()];
+        const targetCode = info?.value || currentSymbol.toUpperCase();
+
+        if (currentSubscribedCode !== targetCode) {
+            socket.emit("regs", {
+                action: "join",
+                list: targetCode
+            });
+            currentSubscribedCode = targetCode;
+        }
     }
 
     async function fetchSnapshotData(symbol, signal) {
@@ -251,22 +401,104 @@
         return (info?.type === 'PS') ? closePrice : (closePrice > 1000 ? closePrice / 1000 : closePrice);
     }
 
-    async function fetchVPSData(symbol, signal = null) {
-        const data = await getBasicPrice(symbol, signal);
-        if (!data) return;
-        const { lastPrice, closePrice } = data;
-        if (!lastPrice || lastPrice === 0) {
-            if (dispPriceEl) { dispPriceEl.innerText = (closePrice || 0).toFixed(2); dispPriceEl.style.color = '#ffab00'; }
-            if (dispChangeEl) dispChangeEl.style.color = '#ffab00';
-            lastKnownPrice = 0; 
-            return; 
+    function renderPriceColor(currentPrice, refPrice, priceEl, magEl) {
+        if (!currentPrice || currentPrice === 0 || !refPrice || refPrice === 0) {
+            if (priceEl) priceEl.style.color = '#ffab00';
+            if (magEl) magEl.style.color = '#ffab00';
+            return;
         }
-        if (lastKnownPrice === lastPrice) return;
-        lastKnownPrice = lastPrice; 
-        const diff = lastPrice - closePrice;
-        const pct = closePrice !== 0 ? (diff / closePrice) * 100 : 0;
-        if (dispPriceEl) { dispPriceEl.innerText = lastPrice.toFixed(2); dispPriceEl.style.color = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00'); }
-        if (dispChangeEl) { const prefix = diff > 0 ? '+' : ''; dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`; dispChangeEl.style.color = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00'); }
+        const diff = currentPrice - refPrice;
+        const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
+        if (priceEl) priceEl.style.color = targetColor;
+        if (magEl) magEl.style.color = targetColor;
+    }
+
+    let lastMagPriceText = ""; 
+
+    // SỬA ĐỔI CHÍNH: Hàm fetchVPSData phân phối luồng HTTP (8h45-8h59p50s) và kích hoạt luồng Socket (8h59p51s trở đi)
+    function fetchVPSData(symbol, signal = null) {
+        if (shouldUseSocket()) {
+            // Bước sang thời gian realtime -> Khởi động mạng lưới Socket
+            initSocketConnection();
+            resubscribeSocket();
+            return; // Đóng hoàn toàn cổng HTTP chặn tải băng thông không cần thiết
+        }
+
+        // Khung giờ từ 8h45 đến 8h59p50s: Chạy hệ thống fetch HTTP snapshot cũ để cập nhật mốc ATO ban đầu
+        const statusEl = document.getElementById('realtimeStatus');
+        if (statusEl) {
+            statusEl.textContent = "Chờ phiên giao dịch...";
+            statusEl.style.color = "#848e9c";
+        }
+
+        const cleanSymbol = symbol ? symbol.trim().toUpperCase() : "VN30F1M";
+        const info = symbolMap[cleanSymbol];
+        let url = "";
+        
+        if (info && info.type === 'PS') url = `https://bgapidatafeed.vps.com.vn/getpsalldatalsnapshot/${info.value}`;
+        else if (info && info.type === 'INDEX') url = `https://bgapidatafeed.vps.com.vn/getlistindexdetail/${info.value}`;
+        else url = `https://bgapidatafeed.vps.com.vn/getliststockdata/${cleanSymbol}`;
+
+        fetch(url, { signal })
+            .then(response => response.json())
+            .then(data => {
+                const item = Array.isArray(data) ? data[0] : data;
+                if (!item) return;
+
+                let lastPrice = 0, closePrice = 0;
+                if (info?.type === 'INDEX') {
+                    lastPrice = parseFloat(item.cIndex) || 0;
+                    closePrice = parseFloat(item.oIndex) || lastPrice;
+                } else if (info?.type === 'PS') {
+                    lastPrice = parseFloat(item.lastPrice) || 0;
+                    closePrice = parseFloat(item.closePrice) || 0;
+                } else {
+                    const rawLast = parseFloat(item.lastPrice) || 0;
+                    const rawClose = parseFloat(item.closePrice) || 0;
+                    lastPrice = rawLast > 1000 ? rawLast / 1000 : rawLast;
+                    closePrice = rawClose > 1000 ? rawClose / 1000 : rawClose;
+                }
+
+                if (globalClosePrice === null && closePrice > 0) {
+                    globalClosePrice = closePrice;
+                }
+                const refPrice = globalClosePrice !== null ? globalClosePrice : (closePrice || 0);
+
+                let finalPrice = lastPrice;
+                if (!finalPrice || finalPrice === 0) {
+                    finalPrice = refPrice;
+                    const firstRow = document.querySelector('#ob-body tr');
+                    if (firstRow) {
+                        const bidPrice = parseFloat(firstRow.children[1]?.innerText);
+                        const askPrice = parseFloat(firstRow.children[2]?.innerText);
+                        if (bidPrice > 0) finalPrice = bidPrice;
+                        else if (askPrice > 0) finalPrice = askPrice;
+                    }
+                }
+
+                const priceStr = finalPrice.toFixed(2);
+
+                if (lastMagPriceText !== priceStr) {
+                    lastMagPriceText = priceStr;
+                    
+                    const magPriceEl = document.getElementById('mag_price_display');
+                    if (magPriceEl) magPriceEl.innerText = priceStr;
+                    if (dispPriceEl) dispPriceEl.innerText = priceStr;
+
+                    if (dispChangeEl && refPrice > 0) {
+                        const diff = finalPrice - refPrice;
+                        const pct = (diff / refPrice) * 100;
+                        const prefix = diff > 0 ? '+' : '';
+                        dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`;
+                        
+                        const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
+                        dispChangeEl.style.color = targetColor;
+                        if (magPriceEl) magPriceEl.style.color = targetColor;
+                        if (dispPriceEl) dispPriceEl.style.color = targetColor;
+                    }
+                }
+            })
+            .catch(e => { });
     }
 
     const indexList = ["VN30", "VN100", "VN50", "VNINDEX", "HNX", "HNX30", "UPCOM"];
@@ -317,7 +549,6 @@
         if (!uiEls.tradeBody) return;
         const type = getSymbolType(symbol);
         
-        // SỬA ĐỔI CHÍNH: Nếu đổi sang mã khác HOẶC mã là INDEX, xóa trắng bảng và reset ngay lập tức
         if (type === "INDEX") {
             uiEls.tradeBody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#999;'>Không hỗ trợ chỉ số</td></tr>";
             lastTradeId = "";
@@ -345,16 +576,13 @@
                 return;
             }
 
-            // Nếu bảng đang có thông báo cũ thì làm trống
             if (uiEls.tradeBody.innerHTML.includes("Không hỗ trợ") || uiEls.tradeBody.innerHTML.includes("Không có dữ liệu")) {
                 uiEls.tradeBody.innerHTML = "";
             }
 
-            // Lọc các bản ghi thực sự mới dựa trên thuộc tính thời gian duy nhất
             const newTrades = res.data.filter(i => i.time !== lastTradeId);
             if (newTrades.length === 0) return;
 
-            // Nếu độ dài mớI bằng toàn bộ mảng trả về (nghĩa là đổi mã hoàn toàn), xóa sạch để tránh bị dính đuôi
             if (newTrades.length === res.data.length) {
                 uiEls.tradeBody.innerHTML = "";
             }
@@ -365,7 +593,6 @@
                 const sideColor = i.side === 'S' ? '#f23645' : '#089981';
                 const sideText = i.side === 'S' ? 'B' : 'M';
                 
-                // Chuẩn hóa hiển thị giá cổ phiếu cơ sở
                 let displayPrice = parseFloat(i.lastPrice);
                 if (type === "STOCK" && displayPrice > 1000) displayPrice = displayPrice / 1000;
 
@@ -407,7 +634,7 @@
 
     function createTab(symbol, id, isActive = false) {
         const sym = (symbol && symbol !== 'undefined' && symbol !== 'null') ? symbol : "VN30F1M";
-        let chartUrl = `https://chart.vps.com.vn/tv/?symbol=${sym}&allowFullscreen=true&resolution=D&theme=light`;
+        let chartUrl = `https://chart.vps.com.vn/tv/?symbol=${sym}&allowFullscreen=true&resolution=15&theme=light`;
         if (globalUserID && globalSession) chartUrl += `&u=${globalUserID}&s=${globalSession}&loadLastChart=true`;
         
         const tab = document.createElement("button");
@@ -415,20 +642,14 @@
         tab.setAttribute('data-id', id);
         tab.setAttribute('data-symbol', sym);
         
-        // SỬA TẠI ĐÂY: Thêm style="pointer-events: none;" vào thẻ chứa chữ (tab-title)
         tab.innerHTML = `<span class="tab-title" style="pointer-events: none;">${sym}</span> <span class="close-btn" onclick="removeTab(event, '${id}')">×</span>`;
         
-        // SỬA TẠI ĐÂY: Logic click cực kỳ gọn gàng
         tab.onclick = (e) => { 
-            // Nếu click trúng nút close-btn thì dừng lại để hàm removeTab xử lý
             if (e.target.classList.contains('close-btn')) return; 
-            
-            // Còn lại click vào khoảng trắng hay click trúng chữ (đã xuyên thấu) đều chuyển tab
             switchTab(e, id, sym); 
         };
         
-        const addBtn = document.querySelector(".btn-add");
-        document.getElementById("mainTabMenu").insertBefore(tab, addBtn);
+        document.getElementById("mainTabMenu").appendChild(tab);
 
         const div = document.createElement("div");
         div.id = id;
@@ -462,19 +683,23 @@
         const startMinutes = 8 * 60 + 45; // 8h45
         const endMinutes = 15 * 60;       // 15h00
 
-        // Trả về true nếu đang trong khung giờ giao dịch từ 08:45 đến 15:00
         return (totalMinutes >= startMinutes && totalMinutes < endMinutes);
     }
 
     async function startSmartPolling() {
-        // 1. VÒNG LẶP NHANH: Cập nhật giá chính (Mỗi 150ms)
         const runFastLoop = async () => {
             while (isRunning) {
-                // Nếu ngoài giờ giao dịch (15h00 - 8h45), cho vòng lặp ngủ đông 5 phút (300.000ms)
                 if (!checkMarketTime()) {
-                    console.log("=== Ngoài giờ giao dịch (15h00-8h45): Vòng lặp nhanh tạm nghỉ 5 phút ===");
-                    await new Promise(r => setTimeout(r, 300000)); 
-                    continue; // Sau 5 phút thức dậy kiểm tra lại giờ, không chạy code gọi API bên dưới
+                    await new Promise(r => setTimeout(r, 60000)); 
+                    continue; 
+                }
+
+                // Nếu đang dùng dữ liệu Socket thời gian thực thì tạm ngưng vòng lặp quét HTTP
+                if (shouldUseSocket()) {
+                    if (!socket) initSocketConnection();
+                    resubscribeSocket();
+                    await new Promise(r => setTimeout(r, 1000));
+                    continue;
                 }
 
                 const start = Date.now();
@@ -485,7 +710,7 @@
                     await fetchVPSData(currentSymbol, controllers.snapshot.signal); 
                 } catch (e) { 
                     if (e.name !== 'AbortError') { 
-                        await new Promise(r => setTimeout(r, 2000)); 
+                        await new Promise(r => setTimeout(r, 120)); 
                         continue; 
                     } 
                 }
@@ -495,13 +720,10 @@
             }
         };
 
-        // 2. VÒNG LẶP CHẬM: Cập nhật Bước giá, Lịch sử khớp lệnh (Mỗi 3 giây)
         const runSlowLoop = async () => {
             while (isRunning) {
-                // Nếu ngoài giờ giao dịch (15h00 - 8h45), cho vòng lặp nặng ngủ đông 5 phút
                 if (!checkMarketTime()) {
-                    console.log("=== Ngoài giờ giao dịch (15h00-8h45): Vòng lặp chậm tạm nghỉ 5 phút ===");
-                    await new Promise(r => setTimeout(r, 300000));
+                    await new Promise(r => setTimeout(r, 60000));
                     continue;
                 }
 
@@ -514,29 +736,32 @@
                         updateOrderBook(currentSymbol, controllers.heavy.signal),
                         fetchTradeHistory(currentSymbol, controllers.heavy.signal)
                     ]);
-                } catch (e) {
-                    console.error("Lỗi cập nhật dữ liệu nặng:", e);
-                }
+                } catch (e) { }
                 
-                // Trong giờ làm việc thì cứ 3 giây quét 1 lần
                 await new Promise(r => setTimeout(r, 3000));
             }
         };
 
-        // Kích hoạt song song 2 luồng tự động kiểm soát giờ giấc
         runFastLoop(); 
         runSlowLoop();
     }
 
     async function initApp() {
         await loadSymbolMap();
+        
+        // Khởi động Socket ngầm để chuẩn bị sẵn sàng đường truyền
+        initSocketConnection();
+
         const savedUid = sessionStorage.getItem('vps_uid');
         const savedSess = sessionStorage.getItem('vps_sess');
         if (savedUid && savedSess) { globalUserID = savedUid; globalSession = savedSess; }
 
         const tabContainer = document.getElementById("mainTabMenu"); 
         const chartContainer = document.getElementById("tabChartsContainer");
-        if (tabContainer) { const addBtn = tabContainer.querySelector('.btn-add'); tabContainer.innerHTML = ''; if (addBtn) tabContainer.appendChild(addBtn); }
+        
+        if (tabContainer) { 
+            document.querySelectorAll('.tab-item').forEach(t => t.remove());
+        }
         if (chartContainer) chartContainer.innerHTML = ''; 
 
         const saved = localStorage.getItem('tradingAppState');
@@ -582,12 +807,14 @@
         const tabItem = e.target ? e.target.closest('.tab-item') : e.currentTarget;
         if (!tabItem || e.target?.classList.contains('close-btn')) return;
 
-        // BẮT BUỘC: Xóa trắng toàn bộ bảng lịch sử ngay lập tức khi đổi tab
         if (uiEls.tradeBody) uiEls.tradeBody.innerHTML = "";
         lastTradeId = "";
         currentTradeSymbol = symbol;
 
-        Object.values(controllers).forEach(c => c?.abort());
+        globalClosePrice = null; 
+        lastKnownPrice = 0;      
+        globalRefPrice = null; 
+
         document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
         tabItem.classList.add('active'); 
         document.querySelectorAll('.tab-content-block').forEach(b => b.classList.remove('active'));
@@ -595,15 +822,26 @@
         if(targetBlock) targetBlock.classList.add('active');
 
         currentSymbol = symbol;
-        globalRefPrice = null; 
         const dispSymbol = document.getElementById('display_symbol');
         if (dispSymbol) dispSymbol.innerText = symbol;
+
+        // Kích hoạt đổi luồng Socket room sang mã mới ngay khi chuyển Tab
+        resubscribeSocket();
 
         try {
             controllers.snapshot = new AbortController();
             controllers.orderBook = new AbortController();
             controllers.tradeHistory = new AbortController();
             controllers.heavy = new AbortController();
+            
+            const refPrice = await getPreviousClosePrice(currentSymbol);
+            globalRefPrice = refPrice;
+            
+            const prevEl = document.getElementById('val_prev');
+            if (prevEl) {
+                prevEl.innerText = refPrice ? refPrice.toFixed(2) : "---.--";
+            }
+
             await Promise.all([
                 getFullSnapshotData(currentSymbol, controllers.heavy.signal), 
                 fetchVPSData(currentSymbol, controllers.snapshot.signal),
@@ -615,11 +853,12 @@
     }
 
     async function updateAll(symbolToLoad) {
+        globalClosePrice = null; 
+        lastKnownPrice = 0;      
         const inputEl = document.getElementById('symbolInput');
         const symbol = symbolToLoad || (inputEl ? inputEl.value.trim().toUpperCase() : null);
         if (!symbol) return;
         
-        // BẮT BUỘC: Xóa trắng toàn bộ lịch sử khi gõ mã mới bấm Cập Nhật
         if (uiEls.tradeBody) uiEls.tradeBody.innerHTML = "";
         lastTradeId = "";
         currentTradeSymbol = symbol;
@@ -627,6 +866,9 @@
         currentSymbol = symbol;
         if (inputEl) inputEl.value = symbol;
         
+        // Đổi luồng đăng ký Socket sang mã mới vừa gõ
+        resubscribeSocket();
+
         const refPrice = await getPreviousClosePrice(currentSymbol);
         globalRefPrice = refPrice; 
         
@@ -644,8 +886,8 @@
 
         const activeIframe = document.querySelector('.tab-content-block.active iframe');
         if (activeIframe) {
-            let newUrl = `https://chart.vps.com.vn/tv/?symbol=${currentSymbol}&allowFullscreen=true&resolution=D&theme=light`;
-            if (globalUserID && globalSession) newUrl += `&u=${globalUserID}&s=${globalSession}`;
+            let newUrl = `https://chart.vps.com.vn/tv/?symbol=${currentSymbol}&allowFullscreen=true&resolution=15&theme=light`;
+            if (globalUserID && globalSession) newUrl += `&u=${globalUserID}&s=${globalSession}&theme=light`;
             activeIframe.src = newUrl;
         }
         
@@ -666,7 +908,7 @@
         if (activeIframe) {
             const activeTab = document.querySelector('.tab-item.active');
             const sym = activeTab ? activeTab.getAttribute('data-symbol') : "VN30F1M";
-            activeIframe.src = `https://chart.vps.com.vn/tv/?symbol=${sym}&allowFullscreen=true&resolution=D&theme=light&lang=vi&u=${globalUserID}&s=${globalSession}&loadLastChart=true`;
+            activeIframe.src = `https://chart.vps.com.vn/tv/?symbol=${sym}&allowFullscreen=true&resolution=15&theme=light&lang=vi&u=${globalUserID}&s=${globalSession}&loadLastChart=true`;
         }
     }
 
