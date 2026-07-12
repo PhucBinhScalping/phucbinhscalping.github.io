@@ -165,7 +165,6 @@
     let currentTradeSymbol = ""; 
     let globalClosePrice = null;
 
-    // BỔ SUNG: Các biến toàn cục kiểm soát Socket
     let socket = null;
     let currentSubscribedCode = "";
 
@@ -206,61 +205,57 @@
         } catch (error) { console.error("Lỗi load map:", error); }
     }
 
-    // BỔ SUNG: Hàm kiểm tra chính xác mốc thời gian để kích hoạt Socket
     function shouldUseSocket() {
         const now = new Date();
         const hours = now.getHours();
         const minutes = now.getMinutes();
         const seconds = now.getSeconds();
-        
-        // Đổi thời gian hiện tại ra đơn vị giây tính từ nửa đêm
         const totalSeconds = hours * 3600 + minutes * 60 + seconds;
         
-        const socketStartSeconds = 8 * 3600 + 59 * 60 + 51; // 8h59p51s
-        const marketEndSeconds = 15 * 3600;                 // 15h00p00s
+        const socketStartSeconds = 8 * 3600 + 59 * 60 + 51; 
+        const marketEndSeconds = 15 * 3600;                 
         
         return (totalSeconds >= socketStartSeconds && totalSeconds < marketEndSeconds);
     }
 
-    // BỔ SUNG: Hàm khởi tạo và quản lý cổng kết nối dữ liệu Socket trực tuyến
     function initSocketConnection() {
         if (socket) return;
         
         socket = io("https://bgdatafeed.vps.com.vn", {
             transports: ["websocket"],
-            path: "/socket.io/"
+            path: "/socket.io/",
+            autoConnect: true,
+            reconnection: true
         });
 
         socket.on("connect", () => {
             const statusEl = document.getElementById('realtimeStatus');
-            if (statusEl) {
-                statusEl.textContent = "● connect";
+            if (statusEl && shouldUseSocket()) {
+                statusEl.textContent = "● ĐÃ KẾT NỐI REALTIME";
                 statusEl.style.color = "#0ecb81";
             }
             resubscribeSocket();
         });
 
-        socket.onAny((eventName, data) => {
-            // Chỉ thực thi tiếp nhận gói tin Socket nếu đang trong khung giờ sau 8h59p51s
+        const handleIncomingData = (data) => {
             if (!shouldUseSocket()) return;
 
             try {
                 if (typeof data === 'string') data = JSON.parse(data);
-
                 const info = symbolMap[currentSymbol.toUpperCase()];
                 const targetCode = info?.value || currentSymbol.toUpperCase();
 
                 let target = null;
                 if (data) {
-                    if (data.id === targetCode || data.sym === targetCode || data.code === targetCode) {
+                    if (data.id === targetCode || data.sym === targetCode || data.code === targetCode || data.mc === targetCode) {
                         target = data;
                     } else if (Array.isArray(data)) {
-                        target = data.find(item => item.id === targetCode || item.sym === targetCode || item.code === targetCode);
+                        target = data.find(item => item.id === targetCode || item.sym === targetCode || item.code === targetCode || item.mc === targetCode);
                     }
                 }
 
                 if (target) {
-                    let rawPrice = target.c || target.p || target.lastPrice || target.price;
+                    let rawPrice = target.c || target.p || target.lastPrice || target.price || target.cIndex;
                     if (rawPrice) {
                         let finalPrice = parseFloat(rawPrice);
                         if (info?.type !== 'PS' && info?.type !== 'INDEX' && finalPrice > 1000) {
@@ -268,35 +263,20 @@
                         }
 
                         const priceStr = finalPrice.toFixed(2);
-
-                        if (lastMagPriceText !== priceStr && !isNaN(finalPrice) && finalPrice > 0) {
-                            lastMagPriceText = priceStr;
-
-                            const magPriceEl = document.getElementById('mag_price_display');
-                            if (magPriceEl) magPriceEl.innerText = priceStr;
-                            if (dispPriceEl) dispPriceEl.innerText = priceStr;
-
-                            const refPrice = globalRefPrice || globalClosePrice || 0;
-                            if (dispChangeEl && refPrice > 0) {
-                                const diff = finalPrice - refPrice;
-                                const pct = (diff / refPrice) * 100;
-                                const prefix = diff > 0 ? '+' : '';
-                                dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`;
-
-                                const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
-                                dispChangeEl.style.color = targetColor;
-                                if (magPriceEl) magPriceEl.style.color = targetColor;
-                                if (dispPriceEl) dispPriceEl.style.color = targetColor;
-                            }
-                        }
+                        updatePriceUI(finalPrice, priceStr);
                     }
                 }
             } catch (err) {}
-        });
+        };
+
+        socket.on("stockData", handleIncomingData);
+        socket.on("psData", handleIncomingData);
+        socket.on("indexData", handleIncomingData);
+        socket.on("data", handleIncomingData); 
 
         socket.on("disconnect", () => {
             const statusEl = document.getElementById('realtimeStatus');
-            if (statusEl) {
+            if (statusEl && shouldUseSocket()) {
                 statusEl.textContent = "○ MẤT KẾT NỐI SÀN";
                 statusEl.style.color = "#f23645";
             }
@@ -304,7 +284,6 @@
         });
     }
 
-    // BỔ SUNG: Hàm chuyển đổi luồng đăng ký mã tương ứng khi thay đổi Tab/Mã chứng khoán
     function resubscribeSocket() {
         if (!socket || !socket.connected) return;
         
@@ -312,10 +291,10 @@
         const targetCode = info?.value || currentSymbol.toUpperCase();
 
         if (currentSubscribedCode !== targetCode) {
-            socket.emit("regs", {
-                action: "join",
-                list: targetCode
-            });
+            if (currentSubscribedCode) {
+                socket.emit("regs", { action: "leave", list: currentSubscribedCode });
+            }
+            socket.emit("regs", { action: "join", list: targetCode });
             currentSubscribedCode = targetCode;
         }
     }
@@ -335,10 +314,48 @@
         } catch (e) { return null; }
     }
 
-    async function getBasicPrice(symbol, signal) {
-        const res = await fetchSnapshotData(symbol, signal); 
-        if (!res || !res.item) return null;
+    function updatePriceUI(finalPrice, priceStr) {
+        lastMagPriceText = priceStr;
+        const magPriceEl = document.getElementById('mag_price_display');
+        if (magPriceEl) magPriceEl.innerText = priceStr;
+        if (dispPriceEl) dispPriceEl.innerText = priceStr;
+
+        const refPrice = globalRefPrice || globalClosePrice || 0;
+        if (dispChangeEl && refPrice > 0) {
+            const diff = finalPrice - refPrice;
+            const pct = (diff / refPrice) * 100;
+            const prefix = diff > 0 ? '+' : '';
+            dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`;
+            
+            const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
+            dispChangeEl.style.color = targetColor;
+            if (magPriceEl) magPriceEl.style.color = targetColor;
+            if (dispPriceEl) dispPriceEl.style.color = targetColor;
+        }
+    }
+
+    async function fetchVPSData(symbol, signal = null) {
+        const statusEl = document.getElementById('realtimeStatus');
+        
+        if (shouldUseSocket()) {
+            if (statusEl) {
+                statusEl.textContent = "● ĐÃ KẾT NỐI REALTIME";
+                statusEl.style.color = "#0ecb81";
+            }
+            initSocketConnection();
+            resubscribeSocket();
+            return; 
+        } else {
+            if (statusEl) {
+                statusEl.textContent = "Thị trường đóng cửa";
+                statusEl.style.color = "#848e9c";
+            }
+        }
+
+        const res = await fetchSnapshotData(symbol, signal);
+        if (!res || !res.item) return;
         const { item, info } = res;
+
         let lastPrice = 0, closePrice = 0;
         if (info?.type === 'INDEX') {
             lastPrice = parseFloat(item.cIndex) || 0;
@@ -352,11 +369,18 @@
             lastPrice = rawLast > 1000 ? rawLast / 1000 : rawLast;
             closePrice = rawClose > 1000 ? rawClose / 1000 : rawClose;
         }
-        if (dispPriceEl) {
-            const newText = lastPrice.toFixed(2);
-            if (dispPriceEl.innerText !== newText) dispPriceEl.innerText = newText;
+
+        if (globalClosePrice === null && closePrice > 0) {
+            globalClosePrice = closePrice;
         }
-        return { lastPrice, closePrice };
+        const refPrice = globalRefPrice || globalClosePrice || closePrice || 0;
+
+        const closeValEl = document.getElementById('val_close');
+        if (closeValEl && closePrice > 0) closeValEl.innerText = closePrice.toFixed(2);
+
+        let finalPrice = lastPrice || closePrice || refPrice;
+        const priceStr = finalPrice.toFixed(2);
+        updatePriceUI(finalPrice, priceStr);
     }
 
     async function getFullSnapshotData(symbol, signal) {
@@ -399,106 +423,6 @@
         if (info?.type === 'INDEX') return parseFloat(item.oIndex) || 0;
         const closePrice = parseFloat(item.closePrice) || 0;
         return (info?.type === 'PS') ? closePrice : (closePrice > 1000 ? closePrice / 1000 : closePrice);
-    }
-
-    function renderPriceColor(currentPrice, refPrice, priceEl, magEl) {
-        if (!currentPrice || currentPrice === 0 || !refPrice || refPrice === 0) {
-            if (priceEl) priceEl.style.color = '#ffab00';
-            if (magEl) magEl.style.color = '#ffab00';
-            return;
-        }
-        const diff = currentPrice - refPrice;
-        const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
-        if (priceEl) priceEl.style.color = targetColor;
-        if (magEl) magEl.style.color = targetColor;
-    }
-
-    let lastMagPriceText = ""; 
-
-    // SỬA ĐỔI CHÍNH: Hàm fetchVPSData phân phối luồng HTTP (8h45-8h59p50s) và kích hoạt luồng Socket (8h59p51s trở đi)
-    function fetchVPSData(symbol, signal = null) {
-        if (shouldUseSocket()) {
-            // Bước sang thời gian realtime -> Khởi động mạng lưới Socket
-            initSocketConnection();
-            resubscribeSocket();
-            return; // Đóng hoàn toàn cổng HTTP chặn tải băng thông không cần thiết
-        }
-
-        // Khung giờ từ 8h45 đến 8h59p50s: Chạy hệ thống fetch HTTP snapshot cũ để cập nhật mốc ATO ban đầu
-        const statusEl = document.getElementById('realtimeStatus');
-        if (statusEl) {
-            statusEl.textContent = "Chờ phiên giao dịch...";
-            statusEl.style.color = "#848e9c";
-        }
-
-        const cleanSymbol = symbol ? symbol.trim().toUpperCase() : "VN30F1M";
-        const info = symbolMap[cleanSymbol];
-        let url = "";
-        
-        if (info && info.type === 'PS') url = `https://bgapidatafeed.vps.com.vn/getpsalldatalsnapshot/${info.value}`;
-        else if (info && info.type === 'INDEX') url = `https://bgapidatafeed.vps.com.vn/getlistindexdetail/${info.value}`;
-        else url = `https://bgapidatafeed.vps.com.vn/getliststockdata/${cleanSymbol}`;
-
-        fetch(url, { signal })
-            .then(response => response.json())
-            .then(data => {
-                const item = Array.isArray(data) ? data[0] : data;
-                if (!item) return;
-
-                let lastPrice = 0, closePrice = 0;
-                if (info?.type === 'INDEX') {
-                    lastPrice = parseFloat(item.cIndex) || 0;
-                    closePrice = parseFloat(item.oIndex) || lastPrice;
-                } else if (info?.type === 'PS') {
-                    lastPrice = parseFloat(item.lastPrice) || 0;
-                    closePrice = parseFloat(item.closePrice) || 0;
-                } else {
-                    const rawLast = parseFloat(item.lastPrice) || 0;
-                    const rawClose = parseFloat(item.closePrice) || 0;
-                    lastPrice = rawLast > 1000 ? rawLast / 1000 : rawLast;
-                    closePrice = rawClose > 1000 ? rawClose / 1000 : rawClose;
-                }
-
-                if (globalClosePrice === null && closePrice > 0) {
-                    globalClosePrice = closePrice;
-                }
-                const refPrice = globalClosePrice !== null ? globalClosePrice : (closePrice || 0);
-
-                let finalPrice = lastPrice;
-                if (!finalPrice || finalPrice === 0) {
-                    finalPrice = refPrice;
-                    const firstRow = document.querySelector('#ob-body tr');
-                    if (firstRow) {
-                        const bidPrice = parseFloat(firstRow.children[1]?.innerText);
-                        const askPrice = parseFloat(firstRow.children[2]?.innerText);
-                        if (bidPrice > 0) finalPrice = bidPrice;
-                        else if (askPrice > 0) finalPrice = askPrice;
-                    }
-                }
-
-                const priceStr = finalPrice.toFixed(2);
-
-                if (lastMagPriceText !== priceStr) {
-                    lastMagPriceText = priceStr;
-                    
-                    const magPriceEl = document.getElementById('mag_price_display');
-                    if (magPriceEl) magPriceEl.innerText = priceStr;
-                    if (dispPriceEl) dispPriceEl.innerText = priceStr;
-
-                    if (dispChangeEl && refPrice > 0) {
-                        const diff = finalPrice - refPrice;
-                        const pct = (diff / refPrice) * 100;
-                        const prefix = diff > 0 ? '+' : '';
-                        dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`;
-                        
-                        const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
-                        dispChangeEl.style.color = targetColor;
-                        if (magPriceEl) magPriceEl.style.color = targetColor;
-                        if (dispPriceEl) dispPriceEl.style.color = targetColor;
-                    }
-                }
-            })
-            .catch(e => { });
     }
 
     const indexList = ["VN30", "VN100", "VN50", "VNINDEX", "HNX", "HNX30", "UPCOM"];
@@ -680,8 +604,8 @@
         const minutes = now.getMinutes();
         const totalMinutes = hours * 60 + minutes;
 
-        const startMinutes = 8 * 60 + 45; // 8h45
-        const endMinutes = 15 * 60;       // 15h00
+        const startMinutes = 8 * 60 + 45; 
+        const endMinutes = 15 * 60;       
 
         return (totalMinutes >= startMinutes && totalMinutes < endMinutes);
     }
@@ -694,7 +618,6 @@
                     continue; 
                 }
 
-                // Nếu đang dùng dữ liệu Socket thời gian thực thì tạm ngưng vòng lặp quét HTTP
                 if (shouldUseSocket()) {
                     if (!socket) initSocketConnection();
                     resubscribeSocket();
@@ -746,12 +669,30 @@
         runSlowLoop();
     }
 
+    async function forceStaticFetchOnLoad(symbol) {
+        try {
+            const refPrice = await getPreviousClosePrice(symbol);
+            globalRefPrice = refPrice;
+            const prevEl = document.getElementById('val_prev');
+            if (prevEl) prevEl.innerText = refPrice ? refPrice.toFixed(2) : "---.--";
+
+            // Ép buộc tải dữ liệu Snapshot HTTP ngay lập tức để lấy giá tĩnh
+            let originalSocketState = shouldUseSocket;
+            shouldUseSocket = () => false; // Fake tạm thời để lách qua hàm chặn
+            await fetchVPSData(symbol);
+            shouldUseSocket = originalSocketState; // Trả lại hàm cũ
+
+            await Promise.all([
+                getFullSnapshotData(symbol),
+                updateOrderBook(symbol),
+                fetchTradeHistory(symbol)
+            ]);
+        } catch (e) { console.error("Lỗi force fetch ban đầu:", e); }
+    }
+
     async function initApp() {
         await loadSymbolMap();
         
-        // Khởi động Socket ngầm để chuẩn bị sẵn sàng đường truyền
-        initSocketConnection();
-
         const savedUid = sessionStorage.getItem('vps_uid');
         const savedSess = sessionStorage.getItem('vps_sess');
         if (savedUid && savedSess) { globalUserID = savedUid; globalSession = savedSess; }
@@ -759,9 +700,7 @@
         const tabContainer = document.getElementById("mainTabMenu"); 
         const chartContainer = document.getElementById("tabChartsContainer");
         
-        if (tabContainer) { 
-            document.querySelectorAll('.tab-item').forEach(t => t.remove());
-        }
+        if (tabContainer) document.querySelectorAll('.tab-item').forEach(t => t.remove());
         if (chartContainer) chartContainer.innerHTML = ''; 
 
         const saved = localStorage.getItem('tradingAppState');
@@ -772,7 +711,7 @@
                 if (state.tabs && Array.isArray(state.tabs)) {
                     state.tabs.forEach(t => {
                         createTab(t.symbol, t.id, t.active);
-                        if (t.active) { currentSymbol = t.symbol; updateAll(t.symbol); }
+                        if (t.active) { currentSymbol = t.symbol; }
                     });
                     const symInput = document.getElementById('symbolInput');
                     if (symInput) symInput.value = state.inputValue || "";
@@ -780,7 +719,15 @@
                 }
             } catch (e) { console.error("Lỗi khôi phục trạng thái:", e); }
         }
-        if (!initialized) { currentSymbol = "VN30F1M"; createTab(currentSymbol, "c_default", true); updateAll(currentSymbol); }
+        if (!initialized) { currentSymbol = "VN30F1M"; createTab(currentSymbol, "c_default", true); }
+        
+        // GỌI ÉP BUỘC LẤY GIÁ TĨNH KHI MỞ TRANG
+        await forceStaticFetchOnLoad(currentSymbol);
+
+        if (shouldUseSocket()) {
+            initSocketConnection();
+        }
+
         if (globalUserID && globalSession) setTimeout(updateActiveIframe, 100); 
         window.isRunning = true; 
         startSmartPolling();
@@ -825,30 +772,12 @@
         const dispSymbol = document.getElementById('display_symbol');
         if (dispSymbol) dispSymbol.innerText = symbol;
 
-        // Kích hoạt đổi luồng Socket room sang mã mới ngay khi chuyển Tab
-        resubscribeSocket();
+        // Tải dữ liệu tĩnh ngay lập tức cho Tab mới
+        await forceStaticFetchOnLoad(currentSymbol);
 
-        try {
-            controllers.snapshot = new AbortController();
-            controllers.orderBook = new AbortController();
-            controllers.tradeHistory = new AbortController();
-            controllers.heavy = new AbortController();
-            
-            const refPrice = await getPreviousClosePrice(currentSymbol);
-            globalRefPrice = refPrice;
-            
-            const prevEl = document.getElementById('val_prev');
-            if (prevEl) {
-                prevEl.innerText = refPrice ? refPrice.toFixed(2) : "---.--";
-            }
-
-            await Promise.all([
-                getFullSnapshotData(currentSymbol, controllers.heavy.signal), 
-                fetchVPSData(currentSymbol, controllers.snapshot.signal),
-                updateOrderBook(currentSymbol, controllers.orderBook.signal),
-                fetchTradeHistory(currentSymbol, controllers.tradeHistory.signal)
-            ]);
-        } catch (err) {}
+        if (shouldUseSocket()) {
+            resubscribeSocket();
+        }
         debouncedSave();
     }
 
@@ -866,16 +795,8 @@
         currentSymbol = symbol;
         if (inputEl) inputEl.value = symbol;
         
-        // Đổi luồng đăng ký Socket sang mã mới vừa gõ
-        resubscribeSocket();
-
-        const refPrice = await getPreviousClosePrice(currentSymbol);
-        globalRefPrice = refPrice; 
-        
         const dispSymbol = document.getElementById('display_symbol');
         if (dispSymbol) dispSymbol.innerText = currentSymbol;
-        const prevEl = document.getElementById('val_prev');
-        if(prevEl) prevEl.innerText = refPrice ? refPrice.toFixed(2) : "---.--";
         
         const activeTab = document.querySelector('.tab-item.active');
         if (activeTab) {
@@ -891,15 +812,12 @@
             activeIframe.src = newUrl;
         }
         
-        Object.keys(controllers).forEach(key => { if (controllers[key]) controllers[key].abort(); controllers[key] = new AbortController(); });
-        try {
-            await Promise.all([
-                fetchVPSData(currentSymbol, controllers.snapshot.signal),
-                getFullSnapshotData(currentSymbol, controllers.heavy.signal), 
-                updateOrderBook(currentSymbol, controllers.orderBook.signal), 
-                fetchTradeHistory(currentSymbol, controllers.tradeHistory.signal)
-            ]);
-        } catch (e) {}
+        // Tải dữ liệu tĩnh ngay lập tức cho mã mới nhập
+        await forceStaticFetchOnLoad(currentSymbol);
+
+        if (shouldUseSocket()) {
+            resubscribeSocket();
+        }
         debouncedSave();
     }
 
