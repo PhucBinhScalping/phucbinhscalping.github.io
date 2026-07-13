@@ -6,7 +6,6 @@
     <link rel="apple-touch-icon" href="logo.png">
     <meta name="viewport" content="width=1200, initial-scale=1.0">
     <title>Phúc Bình Scalping - Biểu đồ</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         /* Thiết lập nền tảng */
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: sans-serif; overflow: hidden; background: #fff; }
@@ -53,7 +52,7 @@
         /* Ô kính lúp soi giá phóng to */
         .price-magnifier {
             margin-top: 8px;
-            background: #1c2030;
+            background: #fffbef;
             border: 2px dashed #ffb700;
             border-radius: 6px;
             padding: 10px;
@@ -63,13 +62,13 @@
         .price-magnifier .mag-label {
             font-size: 11px;
             text-transform: uppercase;
-            color: #848e9c;
+            color: #666;
             font-weight: bold;
             display: block;
             margin-bottom: 2px;
         }
         .price-magnifier .mag-price {
-            font-size: 38px;
+            font-size: 32px;
             font-weight: 900;
             font-family: 'Courier New', monospace;
             line-height: 1;
@@ -117,11 +116,12 @@
         </div>
         <div class="vps-widget-header" id="display_symbol">VN30F1M</div>
         <div class="price-magnifier">
-            <span class="mag-label" id="realtimeStatus">Kết nối dữ liệu VPS...</span>
+            <span class="mag-label"></span>
             <div id="mag_price_display" class="mag-price" style="color: #ffab00;">---.--</div>
         </div>
         <div class="header-price-group">
             <div id="display_change" class="vps-change">--.--/(--.--%)</div>
+
         </div>
         <span class="info-label">Tham chiếu</span><span id="val_prev" class="info-value" style='font-size: 18px;color: #d9a000; padding: 2px;'>---.--</span>
         <h4>Bước Giá</h4>
@@ -212,8 +212,8 @@
         const seconds = now.getSeconds();
         const totalSeconds = hours * 3600 + minutes * 60 + seconds;
         
-        const socketStartSeconds = 8 * 3600 + 59 * 60 + 51; 
-        const marketEndSeconds = 15 * 3600;                 
+        const socketStartSeconds = 8 * 3600 + 44 * 60 + 0; // Mở rộng khung giờ kết nối Socket
+        const marketEndSeconds = 15 * 3600 + 15 * 60;       
         
         return (totalSeconds >= socketStartSeconds && totalSeconds < marketEndSeconds);
     }
@@ -225,7 +225,9 @@
             transports: ["websocket"],
             path: "/socket.io/",
             autoConnect: true,
-            reconnection: true
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000
         });
 
         socket.on("connect", () => {
@@ -238,37 +240,38 @@
         });
 
         const handleIncomingData = (data) => {
-            if (!shouldUseSocket()) return;
-
             try {
                 if (typeof data === 'string') data = JSON.parse(data);
                 const info = symbolMap[currentSymbol.toUpperCase()];
                 const targetCode = info?.value || currentSymbol.toUpperCase();
 
                 let target = null;
-                if (data) {
-                    if (data.id === targetCode || data.sym === targetCode || data.code === targetCode || data.mc === targetCode) {
-                        target = data;
-                    } else if (Array.isArray(data)) {
-                        target = data.find(item => item.id === targetCode || item.sym === targetCode || item.code === targetCode || item.mc === targetCode);
-                    }
+                if (Array.isArray(data)) {
+                    target = data.find(item => item.id === targetCode || item.sym === targetCode || item.code === targetCode || item.mc === targetCode);
+                } else if (data && (data.id === targetCode || data.sym === targetCode || data.code === targetCode || data.mc === targetCode)) {
+                    target = data;
                 }
 
                 if (target) {
-                    let rawPrice = target.c || target.p || target.lastPrice || target.price || target.cIndex;
+                    // ĐẶC BIỆT CHO PHÁI SINH: Quét tất cả các key biến động giá có thể xuất hiện từ Socket VPS
+                    let rawPrice = target.lastPrice || target.p || target.c || target.price || target.cIndex || target.lastprice;
                     if (rawPrice) {
                         let finalPrice = parseFloat(rawPrice);
                         if (info?.type !== 'PS' && info?.type !== 'INDEX' && finalPrice > 1000) {
                             finalPrice = finalPrice / 1000;
                         }
 
-                        const priceStr = finalPrice.toFixed(2);
-                        updatePriceUI(finalPrice, priceStr);
+                        if (finalPrice > 0) {
+                            lastKnownPrice = finalPrice;
+                            const priceStr = finalPrice.toFixed(2);
+                            updatePriceUI(finalPrice, priceStr);
+                        }
                     }
                 }
             } catch (err) {}
         };
 
+        // Đăng ký toàn bộ các kênh dữ liệu thô từ hệ thống lõi VPS
         socket.on("stockData", handleIncomingData);
         socket.on("psData", handleIncomingData);
         socket.on("indexData", handleIncomingData);
@@ -315,7 +318,6 @@
     }
 
     function updatePriceUI(finalPrice, priceStr) {
-        lastMagPriceText = priceStr;
         const magPriceEl = document.getElementById('mag_price_display');
         if (magPriceEl) magPriceEl.innerText = priceStr;
         if (dispPriceEl) dispPriceEl.innerText = priceStr;
@@ -338,13 +340,14 @@
         const statusEl = document.getElementById('realtimeStatus');
         
         if (shouldUseSocket()) {
-            if (statusEl) {
+            if (statusEl && socket && socket.connected) {
                 statusEl.textContent = "● ĐÃ KẾT NỐI REALTIME";
                 statusEl.style.color = "#0ecb81";
             }
-            initSocketConnection();
+            if (!socket) initSocketConnection();
             resubscribeSocket();
-            return; 
+            // Trong phiên, nếu Socket đang chạy mượt thì bỏ qua luồng HTTP kéo giá để tránh đè dữ liệu trễ
+            if (socket && socket.connected && lastKnownPrice > 0) return; 
         } else {
             if (statusEl) {
                 statusEl.textContent = "Thị trường đóng cửa";
@@ -379,8 +382,10 @@
         if (closeValEl && closePrice > 0) closeValEl.innerText = closePrice.toFixed(2);
 
         let finalPrice = lastPrice || closePrice || refPrice;
-        const priceStr = finalPrice.toFixed(2);
-        updatePriceUI(finalPrice, priceStr);
+        if (finalPrice > 0 && lastKnownPrice === 0) {
+            const priceStr = finalPrice.toFixed(2);
+            updatePriceUI(finalPrice, priceStr);
+        }
     }
 
     async function getFullSnapshotData(symbol, signal) {
@@ -604,8 +609,8 @@
         const minutes = now.getMinutes();
         const totalMinutes = hours * 60 + minutes;
 
-        const startMinutes = 8 * 60 + 45; 
-        const endMinutes = 15 * 60;       
+        const startMinutes = 8 * 60 + 44; 
+        const endMinutes = 15 * 60 + 15;       
 
         return (totalMinutes >= startMinutes && totalMinutes < endMinutes);
     }
@@ -621,7 +626,7 @@
                 if (shouldUseSocket()) {
                     if (!socket) initSocketConnection();
                     resubscribeSocket();
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(r => setTimeout(r, 200)); 
                     continue;
                 }
 
@@ -633,13 +638,13 @@
                     await fetchVPSData(currentSymbol, controllers.snapshot.signal); 
                 } catch (e) { 
                     if (e.name !== 'AbortError') { 
-                        await new Promise(r => setTimeout(r, 120)); 
+                        await new Promise(r => setTimeout(r, 200)); 
                         continue; 
                     } 
                 }
                 
                 const elapsed = Date.now() - start;
-                await new Promise(r => setTimeout(r, Math.max(0, 150 - elapsed)));
+                await new Promise(r => setTimeout(r, Math.max(0, 300 - elapsed)));
             }
         };
 
@@ -661,7 +666,7 @@
                     ]);
                 } catch (e) { }
                 
-                await new Promise(r => setTimeout(r, 3000));
+                await new Promise(r => setTimeout(r, 600)); 
             }
         };
 
@@ -676,11 +681,10 @@
             const prevEl = document.getElementById('val_prev');
             if (prevEl) prevEl.innerText = refPrice ? refPrice.toFixed(2) : "---.--";
 
-            // Ép buộc tải dữ liệu Snapshot HTTP ngay lập tức để lấy giá tĩnh
             let originalSocketState = shouldUseSocket;
-            shouldUseSocket = () => false; // Fake tạm thời để lách qua hàm chặn
+            shouldUseSocket = () => false; 
             await fetchVPSData(symbol);
-            shouldUseSocket = originalSocketState; // Trả lại hàm cũ
+            shouldUseSocket = originalSocketState; 
 
             await Promise.all([
                 getFullSnapshotData(symbol),
@@ -721,7 +725,6 @@
         }
         if (!initialized) { currentSymbol = "VN30F1M"; createTab(currentSymbol, "c_default", true); }
         
-        // GỌI ÉP BUỘC LẤY GIÁ TĨNH KHI MỞ TRANG
         await forceStaticFetchOnLoad(currentSymbol);
 
         if (shouldUseSocket()) {
@@ -772,7 +775,6 @@
         const dispSymbol = document.getElementById('display_symbol');
         if (dispSymbol) dispSymbol.innerText = symbol;
 
-        // Tải dữ liệu tĩnh ngay lập tức cho Tab mới
         await forceStaticFetchOnLoad(currentSymbol);
 
         if (shouldUseSocket()) {
@@ -812,7 +814,6 @@
             activeIframe.src = newUrl;
         }
         
-        // Tải dữ liệu tĩnh ngay lập tức cho mã mới nhập
         await forceStaticFetchOnLoad(currentSymbol);
 
         if (shouldUseSocket()) {
