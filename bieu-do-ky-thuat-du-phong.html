@@ -158,18 +158,23 @@
     const controllers = { snapshot: null, heavy: null, orderBook: null, tradeHistory: null };
     let saveTimeout;
     let globalRefPrice = null;
-    const refPriceCache = {};
-    let snapshotCache = {};
+    let globalClosePrice = null;
     let lastKnownPrice = 0;
     let lastTradeId = ""; 
     let currentTradeSymbol = ""; 
-    let globalClosePrice = null;
 
     let socket = null;
     let currentSubscribedCode = "";
 
+    // Biến tối ưu hóa bộ nhớ đệm đồ họa (UI Cache)
+    let pendingPriceUpdate = null;
+    let animationFrameId = null;
+    let lastRenderedPrice = "";
+    let lastRenderedColor = "";
+
     const dispPriceEl = document.getElementById('display_price');
     const dispChangeEl = document.getElementById('display_change');
+    const magPriceEl = document.getElementById('mag_price_display');
 
     const uiEls = {
         open: document.getElementById('val_open'),
@@ -209,13 +214,46 @@
         const now = new Date();
         const hours = now.getHours();
         const minutes = now.getMinutes();
-        const seconds = now.getSeconds();
-        const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+        const totalSeconds = hours * 3600 + minutes * 60 + now.getSeconds();
+        return (totalSeconds >= 8 * 3600 + 44 * 60 && totalSeconds < 15 * 3600 + 20 * 60);
+    }
+
+    // THỦ THUẬT 1: Vẽ giá bằng card đồ họa màn hình (Không lo đơ lag khi rút chân nhanh)
+    function renderPriceUI() {
+        if (!pendingPriceUpdate) return;
         
-        const socketStartSeconds = 8 * 3600 + 59 * 60 + 51; 
-        const marketEndSeconds = 15 * 3600;                 
-        
-        return (totalSeconds >= socketStartSeconds && totalSeconds < marketEndSeconds);
+        const { price, priceStr } = pendingPriceUpdate;
+        pendingPriceUpdate = null;
+        animationFrameId = null;
+
+        if (lastRenderedPrice !== priceStr) {
+            if (magPriceEl) magPriceEl.innerText = priceStr;
+            if (dispPriceEl) dispPriceEl.innerText = priceStr;
+            lastRenderedPrice = priceStr;
+        }
+
+        const refPrice = globalRefPrice || globalClosePrice || 0;
+        if (dispChangeEl && refPrice > 0) {
+            const diff = price - refPrice;
+            const pct = (diff / refPrice) * 100;
+            const prefix = diff > 0 ? '+' : '';
+            dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`;
+            
+            const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
+            if (lastRenderedColor !== targetColor) {
+                dispChangeEl.style.color = targetColor;
+                if (magPriceEl) magPriceEl.style.color = targetColor;
+                if (dispPriceEl) dispPriceEl.style.color = targetColor;
+                lastRenderedColor = targetColor;
+            }
+        }
+    }
+
+    function updatePriceUI(finalPrice, priceStr) {
+        pendingPriceUpdate = { price: finalPrice, priceStr: priceStr };
+        if (!animationFrameId) {
+            animationFrameId = requestAnimationFrame(renderPriceUI);
+        }
     }
 
     function initSocketConnection() {
@@ -225,7 +263,9 @@
             transports: ["websocket"],
             path: "/socket.io/",
             autoConnect: true,
-            reconnection: true
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 500
         });
 
         socket.on("connect", () => {
@@ -239,31 +279,33 @@
 
         const handleIncomingData = (data) => {
             if (!shouldUseSocket()) return;
-
             try {
                 if (typeof data === 'string') data = JSON.parse(data);
                 const info = symbolMap[currentSymbol.toUpperCase()];
                 const targetCode = info?.value || currentSymbol.toUpperCase();
 
                 let target = null;
-                if (data) {
-                    if (data.id === targetCode || data.sym === targetCode || data.code === targetCode || data.mc === targetCode) {
-                        target = data;
-                    } else if (Array.isArray(data)) {
-                        target = data.find(item => item.id === targetCode || item.sym === targetCode || item.code === targetCode || item.mc === targetCode);
+                if (Array.isArray(data)) {
+                    for (let i = 0; i < data.length; i++) {
+                        if (data[i].id === targetCode || data[i].sym === targetCode || data[i].code === targetCode) {
+                            target = data[i]; break;
+                        }
                     }
+                } else if (data && (data.id === targetCode || data.sym === targetCode || data.code === targetCode)) {
+                    target = data;
                 }
 
                 if (target) {
-                    let rawPrice = target.c || target.p || target.lastPrice || target.price || target.cIndex;
+                    let rawPrice = target.lastPrice || target.p || target.c || target.price || target.cIndex;
                     if (rawPrice) {
                         let finalPrice = parseFloat(rawPrice);
                         if (info?.type !== 'PS' && info?.type !== 'INDEX' && finalPrice > 1000) {
-                            finalPrice = finalPrice / 1000;
+                            finalPrice /= 1000;
                         }
-
-                        const priceStr = finalPrice.toFixed(2);
-                        updatePriceUI(finalPrice, priceStr);
+                        if (finalPrice > 0) {
+                            lastKnownPrice = finalPrice;
+                            updatePriceUI(finalPrice, finalPrice.toFixed(2));
+                        }
                     }
                 }
             } catch (err) {}
@@ -286,14 +328,10 @@
 
     function resubscribeSocket() {
         if (!socket || !socket.connected) return;
-        
         const info = symbolMap[currentSymbol.toUpperCase()];
         const targetCode = info?.value || currentSymbol.toUpperCase();
-
         if (currentSubscribedCode !== targetCode) {
-            if (currentSubscribedCode) {
-                socket.emit("regs", { action: "leave", list: currentSubscribedCode });
-            }
+            if (currentSubscribedCode) socket.emit("regs", { action: "leave", list: currentSubscribedCode });
             socket.emit("regs", { action: "join", list: targetCode });
             currentSubscribedCode = targetCode;
         }
@@ -308,43 +346,21 @@
         else url = `https://bgapidatafeed.vps.com.vn/getliststockdata/${cleanSymbol}`;
         try {
             const response = await fetch(url, { signal });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
             return { item: Array.isArray(data) ? data[0] : data, info, cleanSymbol };
         } catch (e) { return null; }
     }
 
-    function updatePriceUI(finalPrice, priceStr) {
-        lastMagPriceText = priceStr;
-        const magPriceEl = document.getElementById('mag_price_display');
-        if (magPriceEl) magPriceEl.innerText = priceStr;
-        if (dispPriceEl) dispPriceEl.innerText = priceStr;
-
-        const refPrice = globalRefPrice || globalClosePrice || 0;
-        if (dispChangeEl && refPrice > 0) {
-            const diff = finalPrice - refPrice;
-            const pct = (diff / refPrice) * 100;
-            const prefix = diff > 0 ? '+' : '';
-            dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`;
-            
-            const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
-            dispChangeEl.style.color = targetColor;
-            if (magPriceEl) magPriceEl.style.color = targetColor;
-            if (dispPriceEl) dispPriceEl.style.color = targetColor;
-        }
-    }
-
     async function fetchVPSData(symbol, signal = null) {
         const statusEl = document.getElementById('realtimeStatus');
-        
         if (shouldUseSocket()) {
-            if (statusEl) {
+            if (statusEl && socket && socket.connected) {
                 statusEl.textContent = "● ĐÃ KẾT NỐI REALTIME";
                 statusEl.style.color = "#0ecb81";
             }
-            initSocketConnection();
+            if (!socket) initSocketConnection();
             resubscribeSocket();
-            return; 
+            if (socket && socket.connected && lastKnownPrice > 0) return; 
         } else {
             if (statusEl) {
                 statusEl.textContent = "Thị trường đóng cửa";
@@ -370,17 +386,16 @@
             closePrice = rawClose > 1000 ? rawClose / 1000 : rawClose;
         }
 
-        if (globalClosePrice === null && closePrice > 0) {
-            globalClosePrice = closePrice;
-        }
+        if (globalClosePrice === null && closePrice > 0) globalClosePrice = closePrice;
         const refPrice = globalRefPrice || globalClosePrice || closePrice || 0;
 
         const closeValEl = document.getElementById('val_close');
         if (closeValEl && closePrice > 0) closeValEl.innerText = closePrice.toFixed(2);
 
         let finalPrice = lastPrice || closePrice || refPrice;
-        const priceStr = finalPrice.toFixed(2);
-        updatePriceUI(finalPrice, priceStr);
+        if (finalPrice > 0 && lastKnownPrice === 0) {
+            updatePriceUI(finalPrice, finalPrice.toFixed(2));
+        }
     }
 
     async function getFullSnapshotData(symbol, signal) {
@@ -418,8 +433,7 @@
         if (!cleanSymbol) return null;
         const res = await fetchSnapshotData(cleanSymbol);
         if(!res || !res.item) return null;
-        const info = res.info;
-        const item = res.item;
+        const info = res.info; const item = res.item;
         if (info?.type === 'INDEX') return parseFloat(item.oIndex) || 0;
         const closePrice = parseFloat(item.closePrice) || 0;
         return (info?.type === 'PS') ? closePrice : (closePrice > 1000 ? closePrice / 1000 : closePrice);
@@ -472,19 +486,11 @@
     async function fetchTradeHistory(symbol, signal) {
         if (!uiEls.tradeBody) return;
         const type = getSymbolType(symbol);
-        
         if (type === "INDEX") {
             uiEls.tradeBody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#999;'>Không hỗ trợ chỉ số</td></tr>";
-            lastTradeId = "";
-            currentTradeSymbol = symbol;
-            return;
+            lastTradeId = ""; currentTradeSymbol = symbol; return;
         }
-
-        if (currentTradeSymbol !== symbol) {
-            uiEls.tradeBody.innerHTML = "";
-            lastTradeId = "";
-            currentTradeSymbol = symbol;
-        }
+        if (currentTradeSymbol !== symbol) { uiEls.tradeBody.innerHTML = ""; lastTradeId = ""; currentTradeSymbol = symbol; }
 
         try {
             const info = symbolMap[symbol];
@@ -493,12 +499,7 @@
                 : `https://bgapidatafeed.vps.com.vn/getliststocktrade_cs/${symbol}?numpage=10`;
             
             const res = await fetch(url, { signal }).then(r => r.json());
-            if (!res?.data || res.data.length === 0) {
-                if(uiEls.tradeBody.innerHTML === "") {
-                    uiEls.tradeBody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#999;'>Không có dữ liệu</td></tr>";
-                }
-                return;
-            }
+            if (!res?.data || res.data.length === 0) return;
 
             if (uiEls.tradeBody.innerHTML.includes("Không hỗ trợ") || uiEls.tradeBody.innerHTML.includes("Không có dữ liệu")) {
                 uiEls.tradeBody.innerHTML = "";
@@ -506,19 +507,15 @@
 
             const newTrades = res.data.filter(i => i.time !== lastTradeId);
             if (newTrades.length === 0) return;
-
-            if (newTrades.length === res.data.length) {
-                uiEls.tradeBody.innerHTML = "";
-            }
+            if (newTrades.length === res.data.length) uiEls.tradeBody.innerHTML = "";
 
             const fragment = document.createDocumentFragment();
             newTrades.forEach(i => {
                 const tr = document.createElement('tr');
                 const sideColor = i.side === 'S' ? '#f23645' : '#089981';
                 const sideText = i.side === 'S' ? 'B' : 'M';
-                
                 let displayPrice = parseFloat(i.lastPrice);
-                if (type === "STOCK" && displayPrice > 1000) displayPrice = displayPrice / 1000;
+                if (type === "STOCK" && displayPrice > 1000) displayPrice /= 1000;
 
                 tr.innerHTML = `
                     <td>${i.time}</td>
@@ -528,13 +525,8 @@
                 `;
                 fragment.appendChild(tr);
             });
-
             uiEls.tradeBody.insertBefore(fragment, uiEls.tradeBody.firstChild);
-
-            while (uiEls.tradeBody.children.length > 20) {
-                uiEls.tradeBody.removeChild(uiEls.tradeBody.lastChild);
-            }
-
+            while (uiEls.tradeBody.children.length > 20) uiEls.tradeBody.removeChild(uiEls.tradeBody.lastChild);
             lastTradeId = res.data[0].time;
         } catch(e) {}
     }
@@ -565,34 +557,23 @@
         tab.className = "tab-item" + (isActive ? " active" : "");
         tab.setAttribute('data-id', id);
         tab.setAttribute('data-symbol', sym);
-        
         tab.innerHTML = `<span class="tab-title" style="pointer-events: none;">${sym}</span> <span class="close-btn" onclick="removeTab(event, '${id}')">×</span>`;
-        
-        tab.onclick = (e) => { 
-            if (e.target.classList.contains('close-btn')) return; 
-            switchTab(e, id, sym); 
-        };
-        
+        tab.onclick = (e) => { if (e.target.classList.contains('close-btn')) return; switchTab(e, id, sym); };
         document.getElementById("mainTabMenu").appendChild(tab);
 
         const div = document.createElement("div");
-        div.id = id;
-        div.className = "tab-content-block" + (isActive ? " active" : "");
+        div.id = id; div.className = "tab-content-block" + (isActive ? " active" : "");
         div.innerHTML = `<div class="chart-section"><iframe src="${chartUrl}"></iframe></div>`;
-        
         const chartContainer = document.getElementById("tabChartsContainer");
         if (chartContainer) chartContainer.appendChild(div);
-
         if (isActive) div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function addNewChart() {
         document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-content-block').forEach(b => b.classList.remove('active'));
-        const id = "c" + Date.now();
-        const sym = currentSymbol || "VN30F1M"; 
-        createTab(sym, id, true);
-        currentSymbol = sym;
+        const id = "c" + Date.now(); const sym = currentSymbol || "VN30F1M";
+        createTab(sym, id, true); currentSymbol = sym;
         document.getElementById('display_symbol').innerText = sym;
         debouncedSave();
     }
@@ -600,61 +581,31 @@
     let isRunning = true;
     function checkMarketTime() {
         const now = new Date();
-        const hours = now.getHours();
-        const minutes = now.getMinutes();
-        const totalMinutes = hours * 60 + minutes;
-
-        const startMinutes = 8 * 60 + 45; 
-        const endMinutes = 15 * 60;       
-
-        return (totalMinutes >= startMinutes && totalMinutes < endMinutes);
+        const totalMinutes = now.getHours() * 60 + now.getMinutes();
+        return (totalMinutes >= 8 * 60 + 44 && totalMinutes < 15 * 60 + 20);
     }
 
     async function startSmartPolling() {
         const runFastLoop = async () => {
             while (isRunning) {
-                if (!checkMarketTime()) {
-                    await new Promise(r => setTimeout(r, 60000)); 
-                    continue; 
-                }
-
+                if (!checkMarketTime()) { await new Promise(r => setTimeout(r, 60000)); continue; }
                 if (shouldUseSocket()) {
                     if (!socket) initSocketConnection();
                     resubscribeSocket();
-                    // VỊ TRÍ 1: Thay đổi từ 1000 thành 100 (Để Socket kiểm tra luồng nhanh hơn khi đổi tab)
-                    await new Promise(r => setTimeout(r, 100)); 
-                    continue;
+                    await new Promise(r => setTimeout(r, 200)); continue;
                 }
-
-                const start = Date.now();
                 if (controllers.snapshot) controllers.snapshot.abort();
                 controllers.snapshot = new AbortController();
-                
-                try { 
-                    await fetchVPSData(currentSymbol, controllers.snapshot.signal); 
-                } catch (e) { 
-                    if (e.name !== 'AbortError') { 
-                        await new Promise(r => setTimeout(r, 120)); 
-                        continue; 
-                    } 
-                }
-                
-                const elapsed = Date.now() - start;
-                // Chỗ này hệ thống đã tự động ép tốc độ tối đa (150ms), bạn giữ nguyên
-                await new Promise(r => setTimeout(r, Math.max(0, 150 - elapsed)));
+                try { await fetchVPSData(currentSymbol, controllers.snapshot.signal); } catch (e) {}
+                await new Promise(r => setTimeout(r, 300));
             }
         };
 
         const runSlowLoop = async () => {
             while (isRunning) {
-                if (!checkMarketTime()) {
-                    await new Promise(r => setTimeout(r, 60000));
-                    continue;
-                }
-
+                if (!checkMarketTime()) { await new Promise(r => setTimeout(r, 60000)); continue; }
                 if (controllers.heavy) controllers.heavy.abort();
                 controllers.heavy = new AbortController();
-                
                 try {
                     await Promise.all([
                         getFullSnapshotData(currentSymbol, controllers.heavy.signal), 
@@ -662,15 +613,10 @@
                         fetchTradeHistory(currentSymbol, controllers.heavy.signal)
                     ]);
                 } catch (e) { }
-                
-                // VỊ TRÍ 2: Thay đổi từ 3000 (3 giây) thành 100 (0.1 giây)
-                // Giúp Lịch sử khớp lệnh và Sổ lệnh (Order Book) quét liên tục không có độ trễ
-                await new Promise(r => setTimeout(r, 1000)); 
+                await new Promise(r => setTimeout(r, 600)); 
             }
         };
-
-        runFastLoop(); 
-        runSlowLoop();
+        runFastLoop(); runSlowLoop();
     }
 
     async function forceStaticFetchOnLoad(symbol) {
@@ -680,30 +626,25 @@
             const prevEl = document.getElementById('val_prev');
             if (prevEl) prevEl.innerText = refPrice ? refPrice.toFixed(2) : "---.--";
 
-            // Ép buộc tải dữ liệu Snapshot HTTP ngay lập tức để lấy giá tĩnh
             let originalSocketState = shouldUseSocket;
-            shouldUseSocket = () => false; // Fake tạm thời để lách qua hàm chặn
+            shouldUseSocket = () => false; 
             await fetchVPSData(symbol);
-            shouldUseSocket = originalSocketState; // Trả lại hàm cũ
+            shouldUseSocket = originalSocketState; 
 
             await Promise.all([
-                getFullSnapshotData(symbol),
-                updateOrderBook(symbol),
-                fetchTradeHistory(symbol)
+                getFullSnapshotData(symbol), updateOrderBook(symbol), fetchTradeHistory(symbol)
             ]);
-        } catch (e) { console.error("Lỗi force fetch ban đầu:", e); }
+        } catch (e) {}
     }
 
     async function initApp() {
         await loadSymbolMap();
-        
         const savedUid = sessionStorage.getItem('vps_uid');
         const savedSess = sessionStorage.getItem('vps_sess');
         if (savedUid && savedSess) { globalUserID = savedUid; globalSession = savedSess; }
 
         const tabContainer = document.getElementById("mainTabMenu"); 
         const chartContainer = document.getElementById("tabChartsContainer");
-        
         if (tabContainer) document.querySelectorAll('.tab-item').forEach(t => t.remove());
         if (chartContainer) chartContainer.innerHTML = ''; 
 
@@ -715,40 +656,31 @@
                 if (state.tabs && Array.isArray(state.tabs)) {
                     state.tabs.forEach(t => {
                         createTab(t.symbol, t.id, t.active);
-                        if (t.active) { currentSymbol = t.symbol; }
+                        if (t.active) currentSymbol = t.symbol;
                     });
                     const symInput = document.getElementById('symbolInput');
                     if (symInput) symInput.value = state.inputValue || "";
                     initialized = true;
                 }
-            } catch (e) { console.error("Lỗi khôi phục trạng thái:", e); }
+            } catch (e) {}
         }
         if (!initialized) { currentSymbol = "VN30F1M"; createTab(currentSymbol, "c_default", true); }
         
-        // GỌI ÉP BUỘC LẤY GIÁ TĨNH KHI MỞ TRANG
         await forceStaticFetchOnLoad(currentSymbol);
-
-        if (shouldUseSocket()) {
-            initSocketConnection();
-        }
-
+        if (shouldUseSocket()) initSocketConnection();
         if (globalUserID && globalSession) setTimeout(updateActiveIframe, 100); 
-        window.isRunning = true; 
-        startSmartPolling();
+        window.isRunning = true; startSmartPolling();
     }
 
     function removeTab(e, id) {
         e.stopPropagation();
         const tabItem = document.querySelector(`.tab-item[data-id="${id}"]`);
         const contentBlock = document.getElementById(id);
-        const isRemovingActive = tabItem.classList.contains('active');
-        if (isRemovingActive) {
+        if (tabItem.classList.contains('active')) {
             const nextTab = tabItem.nextElementSibling || tabItem.previousElementSibling;
             tabItem.remove(); if (contentBlock) contentBlock.remove();
             if (nextTab && !nextTab.classList.contains('btn-add')) {
-                const nextId = nextTab.getAttribute('data-id');
-                const nextSymbol = nextTab.getAttribute('data-symbol');
-                switchTab({ currentTarget: nextTab }, nextId, nextSymbol);
+                switchTab({ currentTarget: nextTab }, nextTab.getAttribute('data-id'), nextTab.getAttribute('data-symbol'));
             } else { createTab("VN30F1M", "c_default", true); }
         } else { tabItem.remove(); if (contentBlock) contentBlock.remove(); }
         debouncedSave();
@@ -759,12 +691,8 @@
         if (!tabItem || e.target?.classList.contains('close-btn')) return;
 
         if (uiEls.tradeBody) uiEls.tradeBody.innerHTML = "";
-        lastTradeId = "";
-        currentTradeSymbol = symbol;
-
-        globalClosePrice = null; 
-        lastKnownPrice = 0;      
-        globalRefPrice = null; 
+        lastTradeId = ""; currentTradeSymbol = symbol;
+        globalClosePrice = null; lastKnownPrice = 0; globalRefPrice = null; 
 
         document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
         tabItem.classList.add('active'); 
@@ -776,27 +704,19 @@
         const dispSymbol = document.getElementById('display_symbol');
         if (dispSymbol) dispSymbol.innerText = symbol;
 
-        // Tải dữ liệu tĩnh ngay lập tức cho Tab mới
         await forceStaticFetchOnLoad(currentSymbol);
-
-        if (shouldUseSocket()) {
-            resubscribeSocket();
-        }
+        if (shouldUseSocket()) resubscribeSocket();
         debouncedSave();
     }
 
     async function updateAll(symbolToLoad) {
-        globalClosePrice = null; 
-        lastKnownPrice = 0;      
+        globalClosePrice = null; lastKnownPrice = 0;      
         const inputEl = document.getElementById('symbolInput');
         const symbol = symbolToLoad || (inputEl ? inputEl.value.trim().toUpperCase() : null);
         if (!symbol) return;
         
         if (uiEls.tradeBody) uiEls.tradeBody.innerHTML = "";
-        lastTradeId = "";
-        currentTradeSymbol = symbol;
-
-        currentSymbol = symbol;
+        lastTradeId = ""; currentTradeSymbol = symbol; currentSymbol = symbol;
         if (inputEl) inputEl.value = symbol;
         
         const dispSymbol = document.getElementById('display_symbol');
@@ -815,13 +735,8 @@
             if (globalUserID && globalSession) newUrl += `&u=${globalUserID}&s=${globalSession}&theme=light`;
             activeIframe.src = newUrl;
         }
-        
-        // Tải dữ liệu tĩnh ngay lập tức cho mã mới nhập
         await forceStaticFetchOnLoad(currentSymbol);
-
-        if (shouldUseSocket()) {
-            resubscribeSocket();
-        }
+        if (shouldUseSocket()) resubscribeSocket();
         debouncedSave();
     }
 
@@ -837,14 +752,11 @@
     function syncAuthData() {
         const uidInput = document.getElementById('uidInput');
         const sessInput = document.getElementById('sessInput');
-        const uVal = uidInput.value.trim();
-        const sVal = sessInput.value.trim();
+        const uVal = uidInput.value.trim(); const sVal = sessInput.value.trim();
         if (!uVal || !sVal) { alert("Vui lòng nhập đầy đủ User ID và Token!"); return; }
         sessionStorage.setItem('vps_uid', uVal); sessionStorage.setItem('vps_sess', sVal);
-        globalUserID = uVal; globalSession = sVal;
-        updateActiveIframe();
-        uidInput.value = ""; sessInput.value = "";
-        alert("Đã đồng bộ biểu đồ.");
+        globalUserID = uVal; globalSession = sVal; updateActiveIframe();
+        uidInput.value = ""; sessInput.value = ""; alert("Đã đồng bộ biểu đồ.");
     }
 
     function toggleInstructions() {
