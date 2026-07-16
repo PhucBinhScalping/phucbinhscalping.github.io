@@ -524,7 +524,7 @@
     function createTab(symbol, id, isActive = false) {
         const sym = (symbol && symbol !== 'undefined' && symbol !== 'null') ? symbol : "VN30F1M";
         let chartUrl = `https://web5.vps.com.vn/?sym=${currentSymbol}&interval=15&theme=light&lang=vi`;
-        if (globalUserID && globalSession) chartUrl += `&u=${globalUserID}&s=${globalSession}&loadLastChart=true`;
+        if (globalUserID && globalSession) chartUrl += `&u=${globalUserID}&s=${globalSession}`;
         
         const tab = document.createElement("button");
         tab.className = "tab-item" + (isActive ? " active" : "");
@@ -788,7 +788,7 @@
         const activeIframe = document.querySelector('.tab-content-block.active iframe');
         if (activeIframe) {
             let newUrl = `https://web5.vps.com.vn/?sym=${currentSymbol}&interval=15&theme=light&lang=vi`;
-            if (globalUserID && globalSession) newUrl += `&u=${globalUserID}&s=${globalSession}&theme=light`;
+            if (globalUserID && globalSession) newUrl += `&u=${globalUserID}&s=${globalSession}`;
             activeIframe.src = newUrl;
         }
         
@@ -809,7 +809,7 @@
         if (activeIframe) {
             const activeTab = document.querySelector('.tab-item.active');
             const sym = activeTab ? activeTab.getAttribute('data-symbol') : "VN30F1M";
-            activeIframe.src = `https://web5.vps.com.vn/?sym=${currentSymbol}&interval=15&theme=light&lang=vi&u=${globalUserID}&s=${globalSession}&loadLastChart=true`;
+            activeIframe.src = `https://web5.vps.com.vn/?sym=${currentSymbol}&interval=15&theme=light&lang=vi&u=${globalUserID}&s=${globalSession}`;
         }
     }
 
