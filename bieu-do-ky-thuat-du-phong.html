@@ -6,7 +6,6 @@
     <link rel="apple-touch-icon" href="logo.png">
     <meta name="viewport" content="width=1200, initial-scale=1.0">
     <title>Phúc Bình Scalping - Biểu đồ</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         /* Thiết lập nền tảng */
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: sans-serif; overflow: hidden; background: #fff; }
@@ -53,7 +52,7 @@
         /* Ô kính lúp soi giá phóng to */
         .price-magnifier {
             margin-top: 8px;
-            background: #1c2030;
+            background: #fffbef;
             border: 2px dashed #ffb700;
             border-radius: 6px;
             padding: 10px;
@@ -63,13 +62,13 @@
         .price-magnifier .mag-label {
             font-size: 11px;
             text-transform: uppercase;
-            color: #848e9c;
+            color: #666;
             font-weight: bold;
             display: block;
             margin-bottom: 2px;
         }
         .price-magnifier .mag-price {
-            font-size: 38px;
+            font-size: 32px;
             font-weight: 900;
             font-family: 'Courier New', monospace;
             line-height: 1;
@@ -117,11 +116,12 @@
         </div>
         <div class="vps-widget-header" id="display_symbol">VN30F1M</div>
         <div class="price-magnifier">
-            <span class="mag-label" id="realtimeStatus">Kết nối dữ liệu VPS...</span>
+            <span class="mag-label"></span>
             <div id="mag_price_display" class="mag-price" style="color: #ffab00;">---.--</div>
         </div>
         <div class="header-price-group">
             <div id="display_change" class="vps-change">--.--/(--.--%)</div>
+
         </div>
         <span class="info-label">Tham chiếu</span><span id="val_prev" class="info-value" style='font-size: 18px;color: #d9a000; padding: 2px;'>---.--</span>
         <h4>Bước Giá</h4>
@@ -158,23 +158,15 @@
     const controllers = { snapshot: null, heavy: null, orderBook: null, tradeHistory: null };
     let saveTimeout;
     let globalRefPrice = null;
-    let globalClosePrice = null;
+    const refPriceCache = {};
+    let snapshotCache = {};
     let lastKnownPrice = 0;
     let lastTradeId = ""; 
-    let currentTradeSymbol = ""; 
-
-    let socket = null;
-    let currentSubscribedCode = "";
-
-    // Biến tối ưu hóa bộ nhớ đệm đồ họa (UI Cache)
-    let pendingPriceUpdate = null;
-    let animationFrameId = null;
-    let lastRenderedPrice = "";
-    let lastRenderedColor = "";
+    let currentTradeSymbol = ""; // Khai báo biến check mã hiện tại của Lịch sử khớp lệnh
+    let globalClosePrice = null;
 
     const dispPriceEl = document.getElementById('display_price');
     const dispChangeEl = document.getElementById('display_change');
-    const magPriceEl = document.getElementById('mag_price_display');
 
     const uiEls = {
         open: document.getElementById('val_open'),
@@ -210,133 +202,6 @@
         } catch (error) { console.error("Lỗi load map:", error); }
     }
 
-    function shouldUseSocket() {
-        const now = new Date();
-        const hours = now.getHours();
-        const minutes = now.getMinutes();
-        const totalSeconds = hours * 3600 + minutes * 60 + now.getSeconds();
-        return (totalSeconds >= 8 * 3600 + 44 * 60 && totalSeconds < 15 * 3600 + 20 * 60);
-    }
-
-    // THỦ THUẬT 1: Vẽ giá bằng card đồ họa màn hình (Không lo đơ lag khi rút chân nhanh)
-    function renderPriceUI() {
-        if (!pendingPriceUpdate) return;
-        
-        const { price, priceStr } = pendingPriceUpdate;
-        pendingPriceUpdate = null;
-        animationFrameId = null;
-
-        if (lastRenderedPrice !== priceStr) {
-            if (magPriceEl) magPriceEl.innerText = priceStr;
-            if (dispPriceEl) dispPriceEl.innerText = priceStr;
-            lastRenderedPrice = priceStr;
-        }
-
-        const refPrice = globalRefPrice || globalClosePrice || 0;
-        if (dispChangeEl && refPrice > 0) {
-            const diff = price - refPrice;
-            const pct = (diff / refPrice) * 100;
-            const prefix = diff > 0 ? '+' : '';
-            dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`;
-            
-            const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
-            if (lastRenderedColor !== targetColor) {
-                dispChangeEl.style.color = targetColor;
-                if (magPriceEl) magPriceEl.style.color = targetColor;
-                if (dispPriceEl) dispPriceEl.style.color = targetColor;
-                lastRenderedColor = targetColor;
-            }
-        }
-    }
-
-    function updatePriceUI(finalPrice, priceStr) {
-        pendingPriceUpdate = { price: finalPrice, priceStr: priceStr };
-        if (!animationFrameId) {
-            animationFrameId = requestAnimationFrame(renderPriceUI);
-        }
-    }
-
-    function initSocketConnection() {
-        if (socket) return;
-        
-        socket = io("https://bgdatafeed.vps.com.vn", {
-            transports: ["websocket"],
-            path: "/socket.io/",
-            autoConnect: true,
-            reconnection: true,
-            reconnectionAttempts: Infinity,
-            reconnectionDelay: 500
-        });
-
-        socket.on("connect", () => {
-            const statusEl = document.getElementById('realtimeStatus');
-            if (statusEl && shouldUseSocket()) {
-                statusEl.textContent = "● ĐÃ KẾT NỐI REALTIME";
-                statusEl.style.color = "#0ecb81";
-            }
-            resubscribeSocket();
-        });
-
-        const handleIncomingData = (data) => {
-            if (!shouldUseSocket()) return;
-            try {
-                if (typeof data === 'string') data = JSON.parse(data);
-                const info = symbolMap[currentSymbol.toUpperCase()];
-                const targetCode = info?.value || currentSymbol.toUpperCase();
-
-                let target = null;
-                if (Array.isArray(data)) {
-                    for (let i = 0; i < data.length; i++) {
-                        if (data[i].id === targetCode || data[i].sym === targetCode || data[i].code === targetCode) {
-                            target = data[i]; break;
-                        }
-                    }
-                } else if (data && (data.id === targetCode || data.sym === targetCode || data.code === targetCode)) {
-                    target = data;
-                }
-
-                if (target) {
-                    let rawPrice = target.lastPrice || target.p || target.c || target.price || target.cIndex;
-                    if (rawPrice) {
-                        let finalPrice = parseFloat(rawPrice);
-                        if (info?.type !== 'PS' && info?.type !== 'INDEX' && finalPrice > 1000) {
-                            finalPrice /= 1000;
-                        }
-                        if (finalPrice > 0) {
-                            lastKnownPrice = finalPrice;
-                            updatePriceUI(finalPrice, finalPrice.toFixed(2));
-                        }
-                    }
-                }
-            } catch (err) {}
-        };
-
-        socket.on("stockData", handleIncomingData);
-        socket.on("psData", handleIncomingData);
-        socket.on("indexData", handleIncomingData);
-        socket.on("data", handleIncomingData); 
-
-        socket.on("disconnect", () => {
-            const statusEl = document.getElementById('realtimeStatus');
-            if (statusEl && shouldUseSocket()) {
-                statusEl.textContent = "○ MẤT KẾT NỐI SÀN";
-                statusEl.style.color = "#f23645";
-            }
-            currentSubscribedCode = "";
-        });
-    }
-
-    function resubscribeSocket() {
-        if (!socket || !socket.connected) return;
-        const info = symbolMap[currentSymbol.toUpperCase()];
-        const targetCode = info?.value || currentSymbol.toUpperCase();
-        if (currentSubscribedCode !== targetCode) {
-            if (currentSubscribedCode) socket.emit("regs", { action: "leave", list: currentSubscribedCode });
-            socket.emit("regs", { action: "join", list: targetCode });
-            currentSubscribedCode = targetCode;
-        }
-    }
-
     async function fetchSnapshotData(symbol, signal) {
         const cleanSymbol = symbol ? symbol.trim().toUpperCase() : "VN30F1M";
         const info = symbolMap[cleanSymbol];
@@ -346,32 +211,16 @@
         else url = `https://bgapidatafeed.vps.com.vn/getliststockdata/${cleanSymbol}`;
         try {
             const response = await fetch(url, { signal });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
             return { item: Array.isArray(data) ? data[0] : data, info, cleanSymbol };
         } catch (e) { return null; }
     }
 
-    async function fetchVPSData(symbol, signal = null) {
-        const statusEl = document.getElementById('realtimeStatus');
-        if (shouldUseSocket()) {
-            if (statusEl && socket && socket.connected) {
-                statusEl.textContent = "● ĐÃ KẾT NỐI REALTIME";
-                statusEl.style.color = "#0ecb81";
-            }
-            if (!socket) initSocketConnection();
-            resubscribeSocket();
-            if (socket && socket.connected && lastKnownPrice > 0) return; 
-        } else {
-            if (statusEl) {
-                statusEl.textContent = "Thị trường đóng cửa";
-                statusEl.style.color = "#848e9c";
-            }
-        }
-
-        const res = await fetchSnapshotData(symbol, signal);
-        if (!res || !res.item) return;
+    async function getBasicPrice(symbol, signal) {
+        const res = await fetchSnapshotData(symbol, signal); 
+        if (!res || !res.item) return null;
         const { item, info } = res;
-
         let lastPrice = 0, closePrice = 0;
         if (info?.type === 'INDEX') {
             lastPrice = parseFloat(item.cIndex) || 0;
@@ -385,17 +234,11 @@
             lastPrice = rawLast > 1000 ? rawLast / 1000 : rawLast;
             closePrice = rawClose > 1000 ? rawClose / 1000 : rawClose;
         }
-
-        if (globalClosePrice === null && closePrice > 0) globalClosePrice = closePrice;
-        const refPrice = globalRefPrice || globalClosePrice || closePrice || 0;
-
-        const closeValEl = document.getElementById('val_close');
-        if (closeValEl && closePrice > 0) closeValEl.innerText = closePrice.toFixed(2);
-
-        let finalPrice = lastPrice || closePrice || refPrice;
-        if (finalPrice > 0 && lastKnownPrice === 0) {
-            updatePriceUI(finalPrice, finalPrice.toFixed(2));
+        if (dispPriceEl) {
+            const newText = lastPrice.toFixed(2);
+            if (dispPriceEl.innerText !== newText) dispPriceEl.innerText = newText;
         }
+        return { lastPrice, closePrice };
     }
 
     async function getFullSnapshotData(symbol, signal) {
@@ -433,10 +276,113 @@
         if (!cleanSymbol) return null;
         const res = await fetchSnapshotData(cleanSymbol);
         if(!res || !res.item) return null;
-        const info = res.info; const item = res.item;
+        const info = res.info;
+        const item = res.item;
         if (info?.type === 'INDEX') return parseFloat(item.oIndex) || 0;
         const closePrice = parseFloat(item.closePrice) || 0;
         return (info?.type === 'PS') ? closePrice : (closePrice > 1000 ? closePrice / 1000 : closePrice);
+    }
+
+
+
+    //Ham xu ly mau
+    function renderPriceColor(currentPrice, refPrice, priceEl, magEl) {
+        if (!currentPrice || currentPrice === 0 || !refPrice || refPrice === 0) {
+            if (priceEl) priceEl.style.color = '#ffab00';
+            if (magEl) magEl.style.color = '#ffab00';
+            return;
+        }
+        
+        // Tính toán toán học siêu nhanh
+        const diff = currentPrice - refPrice;
+        const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
+        
+        // Đổi màu DOM
+        if (priceEl) priceEl.style.color = targetColor;
+        if (magEl) magEl.style.color = targetColor;
+    }
+
+
+
+    // Biến lưu vết giá cũ của riêng mag_price_display để chặn render đè DOM thừa
+    let lastMagPriceText = ""; 
+
+    function fetchVPSData(symbol, signal = null) {
+        const cleanSymbol = symbol ? symbol.trim().toUpperCase() : "VN30F1M";
+        const info = symbolMap[cleanSymbol];
+        let url = "";
+        
+        if (info && info.type === 'PS') url = `https://bgapidatafeed.vps.com.vn/getpsalldatalsnapshot/${info.value}`;
+        else if (info && info.type === 'INDEX') url = `https://bgapidatafeed.vps.com.vn/getlistindexdetail/${info.value}`;
+        else url = `https://bgapidatafeed.vps.com.vn/getliststockdata/${cleanSymbol}`;
+
+        // Sử dụng fetch thuần không await để xử lý bất đồng bộ ở tầng thấp nhất (Mức mạng)
+        fetch(url, { signal })
+            .then(response => response.json())
+            .then(data => {
+                const item = Array.isArray(data) ? data[0] : data;
+                if (!item) return;
+
+                // 1. Trích xuất giá cực nhanh
+                let lastPrice = 0, closePrice = 0;
+                if (info?.type === 'INDEX') {
+                    lastPrice = parseFloat(item.cIndex) || 0;
+                    closePrice = parseFloat(item.oIndex) || lastPrice;
+                } else if (info?.type === 'PS') {
+                    lastPrice = parseFloat(item.lastPrice) || 0;
+                    closePrice = parseFloat(item.closePrice) || 0;
+                } else {
+                    const rawLast = parseFloat(item.lastPrice) || 0;
+                    const rawClose = parseFloat(item.closePrice) || 0;
+                    lastPrice = rawLast > 1000 ? rawLast / 1000 : rawLast;
+                    closePrice = rawClose > 1000 ? rawClose / 1000 : rawClose;
+                }
+
+                // 2. Đồng bộ giá tham chiếu cố định (Chạy 1 lần đầu hoặc khi đổi tab)
+                if (globalClosePrice === null && closePrice > 0) {
+                    globalClosePrice = closePrice;
+                }
+                const refPrice = globalClosePrice !== null ? globalClosePrice : (closePrice || 0);
+
+                // 3. Xác định giá hiển thị (Xử lý kịch bản ATO/ATC)
+                let finalPrice = lastPrice;
+                if (!finalPrice || finalPrice === 0) {
+                    finalPrice = refPrice;
+                    const firstRow = document.querySelector('#ob-body tr');
+                    if (firstRow) {
+                        const bidPrice = parseFloat(firstRow.children[1]?.innerText);
+                        const askPrice = parseFloat(firstRow.children[2]?.innerText);
+                        if (bidPrice > 0) finalPrice = bidPrice;
+                        else if (askPrice > 0) finalPrice = askPrice;
+                    }
+                }
+
+                const priceStr = finalPrice.toFixed(2);
+
+                // TỐI ƯU DOM: Chỉ ghi đè lên màn hình khi giá trị THỰC SỰ thay đổi
+                if (lastMagPriceText !== priceStr) {
+                    lastMagPriceText = priceStr;
+                    
+                    const magPriceEl = document.getElementById('mag_price_display');
+                    if (magPriceEl) magPriceEl.innerText = priceStr;
+                    if (dispPriceEl) dispPriceEl.innerText = priceStr;
+
+                    // 4. Tính toán phần trăm và hiệu ứng màu sắc trực tiếp (Inline)
+                    if (dispChangeEl && refPrice > 0) {
+                        const diff = finalPrice - refPrice;
+                        const pct = (diff / refPrice) * 100;
+                        const prefix = diff > 0 ? '+' : '';
+                        dispChangeEl.innerText = `${prefix}${diff.toFixed(2)} / (${pct.toFixed(2)}%)`;
+                        
+                        // Đổi màu chữ ngay lập tức
+                        const targetColor = diff > 0 ? '#089981' : (diff < 0 ? '#f23645' : '#ffab00');
+                        dispChangeEl.style.color = targetColor;
+                        if (magPriceEl) magPriceEl.style.color = targetColor;
+                        if (dispPriceEl) dispPriceEl.style.color = targetColor;
+                    }
+                }
+            })
+            .catch(e => { /* Bỏ qua lỗi Abort ngầm định để tránh crash luồng */ });
     }
 
     const indexList = ["VN30", "VN100", "VN50", "VNINDEX", "HNX", "HNX30", "UPCOM"];
@@ -486,11 +432,20 @@
     async function fetchTradeHistory(symbol, signal) {
         if (!uiEls.tradeBody) return;
         const type = getSymbolType(symbol);
+        
+        // SỬA ĐỔI CHÍNH: Nếu đổi sang mã khác HOẶC mã là INDEX, xóa trắng bảng và reset ngay lập tức
         if (type === "INDEX") {
             uiEls.tradeBody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#999;'>Không hỗ trợ chỉ số</td></tr>";
-            lastTradeId = ""; currentTradeSymbol = symbol; return;
+            lastTradeId = "";
+            currentTradeSymbol = symbol;
+            return;
         }
-        if (currentTradeSymbol !== symbol) { uiEls.tradeBody.innerHTML = ""; lastTradeId = ""; currentTradeSymbol = symbol; }
+
+        if (currentTradeSymbol !== symbol) {
+            uiEls.tradeBody.innerHTML = "";
+            lastTradeId = "";
+            currentTradeSymbol = symbol;
+        }
 
         try {
             const info = symbolMap[symbol];
@@ -499,23 +454,36 @@
                 : `https://bgapidatafeed.vps.com.vn/getliststocktrade_cs/${symbol}?numpage=10`;
             
             const res = await fetch(url, { signal }).then(r => r.json());
-            if (!res?.data || res.data.length === 0) return;
+            if (!res?.data || res.data.length === 0) {
+                if(uiEls.tradeBody.innerHTML === "") {
+                    uiEls.tradeBody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#999;'>Không có dữ liệu</td></tr>";
+                }
+                return;
+            }
 
+            // Nếu bảng đang có thông báo cũ thì làm trống
             if (uiEls.tradeBody.innerHTML.includes("Không hỗ trợ") || uiEls.tradeBody.innerHTML.includes("Không có dữ liệu")) {
                 uiEls.tradeBody.innerHTML = "";
             }
 
+            // Lọc các bản ghi thực sự mới dựa trên thuộc tính thời gian duy nhất
             const newTrades = res.data.filter(i => i.time !== lastTradeId);
             if (newTrades.length === 0) return;
-            if (newTrades.length === res.data.length) uiEls.tradeBody.innerHTML = "";
+
+            // Nếu độ dài mớI bằng toàn bộ mảng trả về (nghĩa là đổi mã hoàn toàn), xóa sạch để tránh bị dính đuôi
+            if (newTrades.length === res.data.length) {
+                uiEls.tradeBody.innerHTML = "";
+            }
 
             const fragment = document.createDocumentFragment();
             newTrades.forEach(i => {
                 const tr = document.createElement('tr');
                 const sideColor = i.side === 'S' ? '#f23645' : '#089981';
                 const sideText = i.side === 'S' ? 'B' : 'M';
+                
+                // Chuẩn hóa hiển thị giá cổ phiếu cơ sở
                 let displayPrice = parseFloat(i.lastPrice);
-                if (type === "STOCK" && displayPrice > 1000) displayPrice /= 1000;
+                if (type === "STOCK" && displayPrice > 1000) displayPrice = displayPrice / 1000;
 
                 tr.innerHTML = `
                     <td>${i.time}</td>
@@ -525,8 +493,13 @@
                 `;
                 fragment.appendChild(tr);
             });
+
             uiEls.tradeBody.insertBefore(fragment, uiEls.tradeBody.firstChild);
-            while (uiEls.tradeBody.children.length > 20) uiEls.tradeBody.removeChild(uiEls.tradeBody.lastChild);
+
+            while (uiEls.tradeBody.children.length > 20) {
+                uiEls.tradeBody.removeChild(uiEls.tradeBody.lastChild);
+            }
+
             lastTradeId = res.data[0].time;
         } catch(e) {}
     }
@@ -550,30 +523,48 @@
 
     function createTab(symbol, id, isActive = false) {
         const sym = (symbol && symbol !== 'undefined' && symbol !== 'null') ? symbol : "VN30F1M";
-        let chartUrl = `https://chart.vps.com.vn/tv/?symbol=${sym}&allowFullscreen=true&resolution=15&theme=light`;
+        let chartUrl = `https://web5.vps.com.vn/?sym=${currentSymbol}&interval=15&theme=light&lang=vi`;
         if (globalUserID && globalSession) chartUrl += `&u=${globalUserID}&s=${globalSession}&loadLastChart=true`;
         
         const tab = document.createElement("button");
         tab.className = "tab-item" + (isActive ? " active" : "");
         tab.setAttribute('data-id', id);
         tab.setAttribute('data-symbol', sym);
+        
+        // SỬA TẠI ĐÂY: Thêm style="pointer-events: none;" vào thẻ chứa chữ (tab-title)
         tab.innerHTML = `<span class="tab-title" style="pointer-events: none;">${sym}</span> <span class="close-btn" onclick="removeTab(event, '${id}')">×</span>`;
-        tab.onclick = (e) => { if (e.target.classList.contains('close-btn')) return; switchTab(e, id, sym); };
+        
+        // SỬA TẠI ĐÂY: Logic click cực kỳ gọn gàng
+        tab.onclick = (e) => { 
+            // Nếu click trúng nút close-btn thì dừng lại để hàm removeTab xử lý
+            if (e.target.classList.contains('close-btn')) return; 
+            
+            // Còn lại click vào khoảng trắng hay click trúng chữ (đã xuyên thấu) đều chuyển tab
+            switchTab(e, id, sym); 
+        };
+        
+        
+        // Thay vì chèn vào trước nút bấm, ta dùng appendChild để tab mới luôn xếp ở cuối hàng bên phải
         document.getElementById("mainTabMenu").appendChild(tab);
 
         const div = document.createElement("div");
-        div.id = id; div.className = "tab-content-block" + (isActive ? " active" : "");
+        div.id = id;
+        div.className = "tab-content-block" + (isActive ? " active" : "");
         div.innerHTML = `<div class="chart-section"><iframe src="${chartUrl}"></iframe></div>`;
+        
         const chartContainer = document.getElementById("tabChartsContainer");
         if (chartContainer) chartContainer.appendChild(div);
+
         if (isActive) div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function addNewChart() {
         document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-content-block').forEach(b => b.classList.remove('active'));
-        const id = "c" + Date.now(); const sym = currentSymbol || "VN30F1M";
-        createTab(sym, id, true); currentSymbol = sym;
+        const id = "c" + Date.now();
+        const sym = currentSymbol || "VN30F1M"; 
+        createTab(sym, id, true);
+        currentSymbol = sym;
         document.getElementById('display_symbol').innerText = sym;
         debouncedSave();
     }
@@ -581,60 +572,77 @@
     let isRunning = true;
     function checkMarketTime() {
         const now = new Date();
-        const totalMinutes = now.getHours() * 60 + now.getMinutes();
-        return (totalMinutes >= 8 * 60 + 44 && totalMinutes < 15 * 60 + 20);
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const totalMinutes = hours * 60 + minutes;
+
+        const startMinutes = 8 * 60 + 45; // 8h45
+        const endMinutes = 15 * 60;       // 15h00
+
+        // Trả về true nếu đang trong khung giờ giao dịch từ 08:45 đến 15:00
+        return (totalMinutes >= startMinutes && totalMinutes < endMinutes);
     }
 
     async function startSmartPolling() {
+        // 1. VÒNG LẶP NHANH: Cập nhật giá chính (Mỗi 150ms)
         const runFastLoop = async () => {
             while (isRunning) {
-                if (!checkMarketTime()) { await new Promise(r => setTimeout(r, 60000)); continue; }
-                if (shouldUseSocket()) {
-                    if (!socket) initSocketConnection();
-                    resubscribeSocket();
-                    await new Promise(r => setTimeout(r, 200)); continue;
+                // Nếu ngoài giờ giao dịch (15h00 - 8h45), cho vòng lặp ngủ đông 5 phút (300.000ms)
+                if (!checkMarketTime()) {
+                    console.log("=== Ngoài giờ giao dịch (15h00-8h45): Vòng lặp nhanh tạm nghỉ 5 phút ===");
+                    await new Promise(r => setTimeout(r, 300000)); 
+                    continue; // Sau 5 phút thức dậy kiểm tra lại giờ, không chạy code gọi API bên dưới
                 }
+
+                const start = Date.now();
                 if (controllers.snapshot) controllers.snapshot.abort();
                 controllers.snapshot = new AbortController();
-                try { await fetchVPSData(currentSymbol, controllers.snapshot.signal); } catch (e) {}
-                await new Promise(r => setTimeout(r, 300));
+                
+                try { 
+                    await fetchVPSData(currentSymbol, controllers.snapshot.signal); 
+                } catch (e) { 
+                    if (e.name !== 'AbortError') { 
+                        await new Promise(r => setTimeout(r, 120)); 
+                        continue; 
+                    } 
+                }
+                
+                const elapsed = Date.now() - start;
+                await new Promise(r => setTimeout(r, Math.max(0, 150 - elapsed)));
             }
         };
 
+        // 2. VÒNG LẶP CHẬM: Cập nhật Bước giá, Lịch sử khớp lệnh (Mỗi 3 giây)
         const runSlowLoop = async () => {
             while (isRunning) {
-                if (!checkMarketTime()) { await new Promise(r => setTimeout(r, 60000)); continue; }
+                // Nếu ngoài giờ giao dịch (15h00 - 8h45), cho vòng lặp nặng ngủ đông 5 phút
+                if (!checkMarketTime()) {
+                    console.log("=== Ngoài giờ giao dịch (15h00-8h45): Vòng lặp chậm tạm nghỉ 5 phút ===");
+                    await new Promise(r => setTimeout(r, 300000));
+                    continue;
+                }
+
                 if (controllers.heavy) controllers.heavy.abort();
                 controllers.heavy = new AbortController();
+                
                 try {
                     await Promise.all([
                         getFullSnapshotData(currentSymbol, controllers.heavy.signal), 
                         updateOrderBook(currentSymbol, controllers.heavy.signal),
                         fetchTradeHistory(currentSymbol, controllers.heavy.signal)
                     ]);
-                } catch (e) { }
-                await new Promise(r => setTimeout(r, 600)); 
+                } catch (e) {
+                    console.error("Lỗi cập nhật dữ liệu nặng:", e);
+                }
+                
+                // Trong giờ làm việc thì cứ 3 giây quét 1 lần
+                await new Promise(r => setTimeout(r, 3000));
             }
         };
-        runFastLoop(); runSlowLoop();
-    }
 
-    async function forceStaticFetchOnLoad(symbol) {
-        try {
-            const refPrice = await getPreviousClosePrice(symbol);
-            globalRefPrice = refPrice;
-            const prevEl = document.getElementById('val_prev');
-            if (prevEl) prevEl.innerText = refPrice ? refPrice.toFixed(2) : "---.--";
-
-            let originalSocketState = shouldUseSocket;
-            shouldUseSocket = () => false; 
-            await fetchVPSData(symbol);
-            shouldUseSocket = originalSocketState; 
-
-            await Promise.all([
-                getFullSnapshotData(symbol), updateOrderBook(symbol), fetchTradeHistory(symbol)
-            ]);
-        } catch (e) {}
+        // Kích hoạt song song 2 luồng tự động kiểm soát giờ giấc
+        runFastLoop(); 
+        runSlowLoop();
     }
 
     async function initApp() {
@@ -645,7 +653,14 @@
 
         const tabContainer = document.getElementById("mainTabMenu"); 
         const chartContainer = document.getElementById("tabChartsContainer");
-        if (tabContainer) document.querySelectorAll('.tab-item').forEach(t => t.remove());
+        
+        // --- ĐOẠN ĐÃ ĐƯỢC SỬA TẠI ĐÂY ---
+        // Chỉ xóa các tab cũ (có class .tab-item), giữ nguyên nút "+ Thêm biểu đồ" ở đầu menu
+        if (tabContainer) { 
+            document.querySelectorAll('.tab-item').forEach(t => t.remove());
+        }
+        // --------------------------------
+        
         if (chartContainer) chartContainer.innerHTML = ''; 
 
         const saved = localStorage.getItem('tradingAppState');
@@ -656,43 +671,51 @@
                 if (state.tabs && Array.isArray(state.tabs)) {
                     state.tabs.forEach(t => {
                         createTab(t.symbol, t.id, t.active);
-                        if (t.active) currentSymbol = t.symbol;
+                        if (t.active) { currentSymbol = t.symbol; updateAll(t.symbol); }
                     });
                     const symInput = document.getElementById('symbolInput');
                     if (symInput) symInput.value = state.inputValue || "";
                     initialized = true;
                 }
-            } catch (e) {}
+            } catch (e) { console.error("Lỗi khôi phục trạng thái:", e); }
         }
-        if (!initialized) { currentSymbol = "VN30F1M"; createTab(currentSymbol, "c_default", true); }
-        
-        await forceStaticFetchOnLoad(currentSymbol);
-        if (shouldUseSocket()) initSocketConnection();
+        if (!initialized) { currentSymbol = "VN30F1M"; createTab(currentSymbol, "c_default", true); updateAll(currentSymbol); }
         if (globalUserID && globalSession) setTimeout(updateActiveIframe, 100); 
-        window.isRunning = true; startSmartPolling();
+        window.isRunning = true; 
+        startSmartPolling();
     }
 
     function removeTab(e, id) {
         e.stopPropagation();
         const tabItem = document.querySelector(`.tab-item[data-id="${id}"]`);
         const contentBlock = document.getElementById(id);
-        if (tabItem.classList.contains('active')) {
+        const isRemovingActive = tabItem.classList.contains('active');
+        if (isRemovingActive) {
             const nextTab = tabItem.nextElementSibling || tabItem.previousElementSibling;
             tabItem.remove(); if (contentBlock) contentBlock.remove();
             if (nextTab && !nextTab.classList.contains('btn-add')) {
-                switchTab({ currentTarget: nextTab }, nextTab.getAttribute('data-id'), nextTab.getAttribute('data-symbol'));
+                const nextId = nextTab.getAttribute('data-id');
+                const nextSymbol = nextTab.getAttribute('data-symbol');
+                switchTab({ currentTarget: nextTab }, nextId, nextSymbol);
             } else { createTab("VN30F1M", "c_default", true); }
         } else { tabItem.remove(); if (contentBlock) contentBlock.remove(); }
         debouncedSave();
     }
 
+
     async function switchTab(e, blockId, symbol) {
         const tabItem = e.target ? e.target.closest('.tab-item') : e.currentTarget;
         if (!tabItem || e.target?.classList.contains('close-btn')) return;
 
+        // BẮT BUỘC: Xóa trắng toàn bộ bảng lịch sử ngay lập tức khi đổi tab
         if (uiEls.tradeBody) uiEls.tradeBody.innerHTML = "";
-        lastTradeId = ""; currentTradeSymbol = symbol;
-        globalClosePrice = null; lastKnownPrice = 0; globalRefPrice = null; 
+        lastTradeId = "";
+        currentTradeSymbol = symbol;
+
+        // Reset các biến giá về trạng thái ban đầu để nạp dữ liệu của tab mới
+        globalClosePrice = null; 
+        lastKnownPrice = 0;      
+        globalRefPrice = null; 
 
         document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
         tabItem.classList.add('active'); 
@@ -704,23 +727,56 @@
         const dispSymbol = document.getElementById('display_symbol');
         if (dispSymbol) dispSymbol.innerText = symbol;
 
-        await forceStaticFetchOnLoad(currentSymbol);
-        if (shouldUseSocket()) resubscribeSocket();
+        try {
+            controllers.snapshot = new AbortController();
+            controllers.orderBook = new AbortController();
+            controllers.tradeHistory = new AbortController();
+            controllers.heavy = new AbortController();
+            
+            // --- SỬA/BỔ SUNG TẠI ĐÂY ---
+            // 1. Lấy giá đóng cửa cũ để làm tham chiếu mốc chuẩn cho mã mới chuyển qua
+            const refPrice = await getPreviousClosePrice(currentSymbol);
+            globalRefPrice = refPrice;
+            
+            // 2. Cập nhật ngay lập tức text hiển thị lên ô "Tham chiếu" trên giao diện giao diện
+            const prevEl = document.getElementById('val_prev');
+            if (prevEl) {
+                prevEl.innerText = refPrice ? refPrice.toFixed(2) : "---.--";
+            }
+            // ----------------------------
+
+            await Promise.all([
+                getFullSnapshotData(currentSymbol, controllers.heavy.signal), 
+                fetchVPSData(currentSymbol, controllers.snapshot.signal),
+                updateOrderBook(currentSymbol, controllers.orderBook.signal),
+                fetchTradeHistory(currentSymbol, controllers.tradeHistory.signal)
+            ]);
+        } catch (err) {}
         debouncedSave();
     }
 
     async function updateAll(symbolToLoad) {
-        globalClosePrice = null; lastKnownPrice = 0;      
+        globalClosePrice = null; // Reset giá tham chiếu của mã cũ để nạp mã mới
+        lastKnownPrice = 0;      // Reset giá cũ luôn
         const inputEl = document.getElementById('symbolInput');
         const symbol = symbolToLoad || (inputEl ? inputEl.value.trim().toUpperCase() : null);
         if (!symbol) return;
         
+        // BẮT BUỘC: Xóa trắng toàn bộ lịch sử khi gõ mã mới bấm Cập Nhật
         if (uiEls.tradeBody) uiEls.tradeBody.innerHTML = "";
-        lastTradeId = ""; currentTradeSymbol = symbol; currentSymbol = symbol;
+        lastTradeId = "";
+        currentTradeSymbol = symbol;
+
+        currentSymbol = symbol;
         if (inputEl) inputEl.value = symbol;
+        
+        const refPrice = await getPreviousClosePrice(currentSymbol);
+        globalRefPrice = refPrice; 
         
         const dispSymbol = document.getElementById('display_symbol');
         if (dispSymbol) dispSymbol.innerText = currentSymbol;
+        const prevEl = document.getElementById('val_prev');
+        if(prevEl) prevEl.innerText = refPrice ? refPrice.toFixed(2) : "---.--";
         
         const activeTab = document.querySelector('.tab-item.active');
         if (activeTab) {
@@ -731,12 +787,20 @@
 
         const activeIframe = document.querySelector('.tab-content-block.active iframe');
         if (activeIframe) {
-            let newUrl = `https://chart.vps.com.vn/tv/?symbol=${currentSymbol}&allowFullscreen=true&resolution=15&theme=light`;
+            let newUrl = `https://web5.vps.com.vn/?sym=${currentSymbol}&interval=15&theme=light&lang=vi`;
             if (globalUserID && globalSession) newUrl += `&u=${globalUserID}&s=${globalSession}&theme=light`;
             activeIframe.src = newUrl;
         }
-        await forceStaticFetchOnLoad(currentSymbol);
-        if (shouldUseSocket()) resubscribeSocket();
+        
+        Object.keys(controllers).forEach(key => { if (controllers[key]) controllers[key].abort(); controllers[key] = new AbortController(); });
+        try {
+            await Promise.all([
+                fetchVPSData(currentSymbol, controllers.snapshot.signal),
+                getFullSnapshotData(currentSymbol, controllers.heavy.signal), 
+                updateOrderBook(currentSymbol, controllers.orderBook.signal), 
+                fetchTradeHistory(currentSymbol, controllers.tradeHistory.signal)
+            ]);
+        } catch (e) {}
         debouncedSave();
     }
 
@@ -745,18 +809,21 @@
         if (activeIframe) {
             const activeTab = document.querySelector('.tab-item.active');
             const sym = activeTab ? activeTab.getAttribute('data-symbol') : "VN30F1M";
-            activeIframe.src = `https://chart.vps.com.vn/tv/?symbol=${sym}&allowFullscreen=true&resolution=15&theme=light&lang=vi&u=${globalUserID}&s=${globalSession}&loadLastChart=true`;
+            activeIframe.src = `https://web5.vps.com.vn/?sym=${currentSymbol}&interval=15&theme=light&lang=vi&u=${globalUserID}&s=${globalSession}&loadLastChart=true`;
         }
     }
 
     function syncAuthData() {
         const uidInput = document.getElementById('uidInput');
         const sessInput = document.getElementById('sessInput');
-        const uVal = uidInput.value.trim(); const sVal = sessInput.value.trim();
+        const uVal = uidInput.value.trim();
+        const sVal = sessInput.value.trim();
         if (!uVal || !sVal) { alert("Vui lòng nhập đầy đủ User ID và Token!"); return; }
         sessionStorage.setItem('vps_uid', uVal); sessionStorage.setItem('vps_sess', sVal);
-        globalUserID = uVal; globalSession = sVal; updateActiveIframe();
-        uidInput.value = ""; sessInput.value = ""; alert("Đã đồng bộ biểu đồ.");
+        globalUserID = uVal; globalSession = sVal;
+        updateActiveIframe();
+        uidInput.value = ""; sessInput.value = "";
+        alert("Đã đồng bộ biểu đồ.");
     }
 
     function toggleInstructions() {
