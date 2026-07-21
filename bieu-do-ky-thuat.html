@@ -316,14 +316,14 @@
         else if (info && info.type === 'INDEX') url = `https://bgapidatafeed.vps.com.vn/getlistindexdetail/${info.value}`;
         else url = `https://bgapidatafeed.vps.com.vn/getliststockdata/${cleanSymbol}`;
 
-        // Sử dụng fetch thuần không await để xử lý bất đồng bộ ở tầng thấp nhất (Mức mạng)
+        // Sử dụng fetch thuần không await để xử lý bất đồng bộ ở tầng thấp nhất
         fetch(url, { signal })
             .then(response => response.json())
             .then(data => {
                 const item = Array.isArray(data) ? data[0] : data;
                 if (!item) return;
 
-                // 1. Trích xuất giá cực nhanh
+                // 1. Trích xuất giá từ API Snapshot
                 let lastPrice = 0, closePrice = 0;
                 if (info?.type === 'INDEX') {
                     lastPrice = parseFloat(item.cIndex) || 0;
@@ -344,22 +344,26 @@
                 }
                 const refPrice = globalClosePrice !== null ? globalClosePrice : (closePrice || 0);
 
-                // 3. Xác định giá hiển thị (Xử lý kịch bản ATO/ATC)
+                // 3. Xác định giá hiển thị chuẩn xác
                 let finalPrice = lastPrice;
+
+                // ĐÃ SỬA LỖI TẠI ĐÂY: Nếu không có lastPrice, ưu tiên lấy giá khớp lệnh mới nhất ở bảng Khớp lệnh
                 if (!finalPrice || finalPrice === 0) {
-                    finalPrice = refPrice;
-                    const firstRow = document.querySelector('#ob-body tr');
-                    if (firstRow) {
-                        const bidPrice = parseFloat(firstRow.children[1]?.innerText);
-                        const askPrice = parseFloat(firstRow.children[2]?.innerText);
-                        if (bidPrice > 0) finalPrice = bidPrice;
-                        else if (askPrice > 0) finalPrice = askPrice;
+                    const firstTradeRow = document.querySelector('#trade-history-body tr td:nth-child(2)');
+                    if (firstTradeRow) {
+                        const tradePrice = parseFloat(firstTradeRow.innerText);
+                        if (tradePrice > 0) finalPrice = tradePrice;
+                    }
+                    
+                    // Nếu bảng khớp lệnh chưa có, mới fallback về giá tham chiếu (tuyệt đối không lấy bid/ask làm giá khớp)
+                    if (!finalPrice || finalPrice === 0) {
+                        finalPrice = refPrice;
                     }
                 }
 
                 const priceStr = finalPrice.toFixed(2);
 
-                // TỐI ƯU DOM: Chỉ ghi đè lên màn hình khi giá trị THỰC SỰ thay đổi
+                // 4. TỐI ƯU DOM: Chỉ ghi đè lên màn hình khi giá trị THỰC SỰ thay đổi
                 if (lastMagPriceText !== priceStr) {
                     lastMagPriceText = priceStr;
                     
@@ -367,7 +371,7 @@
                     if (magPriceEl) magPriceEl.innerText = priceStr;
                     if (dispPriceEl) dispPriceEl.innerText = priceStr;
 
-                    // 4. Tính toán phần trăm và hiệu ứng màu sắc trực tiếp (Inline)
+                    // 5. Tính toán phần trăm và hiệu ứng màu sắc trực tiếp (Inline)
                     if (dispChangeEl && refPrice > 0) {
                         const diff = finalPrice - refPrice;
                         const pct = (diff / refPrice) * 100;
