@@ -86,13 +86,21 @@
             gap: 8px;
             text-transform: uppercase;
         }
-        .clean-chart-iframe {
+        
+        /* Cấu hình khung hiển thị ảnh responsive */
+        .chart-scroll-wrapper {
             width: 100%;
-            height: 520px;
-            border: none;
-            border-radius: 12px;
-            background-color: #333333; /* Giữ màu tối bên trong iframe cho đúng tông biểu đồ Plotly */
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            text-align: center;
+        }
+        .responsive-chart-img {
+            width: 100%;
+            max-width: 100%;
+            height: auto;
             display: block;
+            border-radius: 8px;
+            margin: 0 auto;
         }
 
         .cafe-section { text-align: center; margin-top: 30px; width: 100%; }
@@ -196,18 +204,20 @@
                 </div>
             </div>
 
-            <!-- KHOẢNG KHÔNG GIAN DÀNH CHO BIỂU ĐỒ NẰM DƯỚI (NỀN TRẮNG SẠCH SẼ) -->
+            <!-- KHOẢNG KHÔNG GIAN DÀNH CHO BIỂU ĐỒ NẰM DƯỚI -->
             <div class="chart-container-box">
                 <div class="chart-header-title">
                     <span>📈</span> DIỄN BIẾN THỊ TRƯỜNG
                 </div>
                 
-                <!-- Đã sửa lại đường link chính xác đến file chart_only.html -->
-                <iframe 
-                    src="https://phucbinhscalping.online/server_1/chart_only.png" 
-                    class="clean-chart-iframe"
-                    scrolling="no">
-                </iframe>
+                <!-- Đã chuyển từ iframe sang img để co giãn tối ưu trên thiết bị di động -->
+                <div class="chart-scroll-wrapper">
+                    <img 
+                        src="https://phucbinhscalping.online/server_1/chart_only.png" 
+                        alt="Diễn biến thị trường"
+                        class="responsive-chart-img"
+                    >
+                </div>
             </div>
         </div>
 
