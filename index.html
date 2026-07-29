@@ -6,7 +6,7 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-    
+
       gtag('config', 'G-B0RRZ25MCK');
     </script>
     <meta charset="UTF-8">
@@ -62,6 +62,39 @@
         .btn-youtube { background-color: #ff0000; color: #ffffff; }  
         .btn-link-vps { background-color: #ff4500; color: #ffffff; padding: 10px 10px; border-radius: 30px; font-weight: bold; text-decoration: none; border: none; cursor: pointer; transition: background 0.3s; }
         .btn-link-vps:hover { background-color: #e6a800; }
+
+        /* Style dành riêng cho phần Biểu đồ NỀN TRẮNG */
+        .chart-container-box {
+            margin-top: 35px;
+            width: 100%;
+            background: #ffffff; /* Nền màu trắng */
+            border: 1px solid #e0e0e0;
+            border-radius: 16px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .chart-header-title {
+            font-size: 24px;
+            font-weight: 800;
+            color: #002060;
+            text-align: center;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-transform: uppercase;
+        }
+        .clean-chart-iframe {
+            width: 100%;
+            height: 520px;
+            border: none;
+            border-radius: 12px;
+            background-color: #333333; /* Giữ màu tối bên trong iframe cho đúng tông biểu đồ Plotly */
+            display: block;
+        }
+
         .cafe-section { text-align: center; margin-top: 30px; width: 100%; }
         .btn-cafe { background-color: #6F4E37; color: #ffffff; font-size: 18px; padding: 14px 40px; border-radius: 30px; flex: none; }
         .btn-cafe:hover { background-color: #4A3321; }
@@ -73,7 +106,6 @@
         .qr-card-zalo img { border-radius: 15px; }
         .qr-image { width: 100%; height: auto; display: block; }
         .bank-qr-img { width: 100%; max-width: 250px; height: auto; display: block; margin: 15px auto; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid #ddd; }
-        /* CSS CHO ẢNH ID TO HƠN */
         .instruction-img { width: 100%; max-width: 699px; height: auto; display: block; margin: 20px auto; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
         .blog-section { display: flex; flex-direction: column; gap: 20px; }
         .blog-header { font-size: 26px; font-weight: bold; color: #002060; border-bottom: 2px solid #002060; padding-bottom: 10px; margin-bottom: 10px; text-align: left; }
@@ -86,15 +118,14 @@
         .blog-excerpt { font-size: 14px; color: #555555; margin: 0 0 20px 0; line-height: 1.5; flex: 1; }
         .blog-date { font-size: 12px; color: #999999; font-weight: 500; }
         .sticky-contact-btn { position: fixed; bottom: 30px; right: 30px; background-color: #002060; color: #ffffff; padding: 15px 25px; border-radius: 40px; font-size: 16px; font-weight: bold; box-shadow: 0 8px 25px rgba(0,0,0,0.3); border: 2px solid #ffffff; text-decoration: none; cursor: pointer; z-index: 999; display: inline-flex; align-items: center; gap: 10px; transition: transform 0.2s, background-color 0.2s; }
-        .minigame-btn { bottom: 95px !important; background: linear-gradient(135deg, #ff4757, #ff6b81) !important; border-color: #ffffff !important; }
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
         #idModal .modal-box { max-width: 1000px; width: 100%; padding: 30px; }
         .modal-box { 
             background: #ffffff; 
-            padding: 30px; /* Tăng từ 25px lên 30px để thoáng hơn */
+            padding: 30px; 
             border-radius: 20px; 
-            max-width: 500px; /* Tăng từ 400px lên 500px để hộp thoại to hơn */
+            max-width: 500px; 
             width: 100%; 
             text-align: center; 
             box-shadow: 0 15px 40px rgba(0,0,0,0.3); 
@@ -104,7 +135,7 @@
             max-height: 90vh; 
             overflow-y: auto; 
         }
-        .modal-box h3 { margin-top: 0; color: #002060; font-size: 25px; /* Tăng từ 22px lên 24px để cân đối với khung to */ margin-bottom: 20px; }
+        .modal-box h3 { margin-top: 0; color: #002060; font-size: 25px; margin-bottom: 20px; }
         .form-group { margin-bottom: 15px; text-align: left; }
         .form-group label { display: block; font-weight: bold; color: #002060; margin-bottom: 5px; font-size: 18px; }
         .form-group input, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #cccccc; border-radius: 8px; font-size: 18px; box-sizing: border-box; font-family: inherit; }
@@ -112,29 +143,6 @@
         .btn-submit-form { background-color: #002060; color: #ffffff; width: 100%; padding: 12px; font-size: 16px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.15); margin-bottom: 15px; }
         .btn-close { background-color: #757575; color: #ffffff; font-size: 14px; padding: 8px 25px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; }
         .btn-close:hover { background-color: #555555; }
-        /* Style cho câu trích dẫn dưới ảnh bot */
-        .bot-quote {
-            margin-top: 20px;
-            padding: 10px 15px;
-            text-align: center;
-            width: 100%;
-            max-width: 450px;
-            margin-left: auto;
-            margin-right: auto;
-            box-sizing: border-box;
-        }
-        .quote-text {
-            font-size: 19px; /* Kích thước chữ câu nói */
-            color: #002060;  /* Màu xanh đậm đồng bộ với giao diện */
-            line-height: 1.5;
-            margin: 0 0 8px 0;
-        }
-        .quote-author {
-            font-size: 16px; /* Kích thước chữ phần tác giả */
-            color: #333333;
-            margin: 0;
-            font-weight: bold; /* Tác giả in đậm đứng để phân biệt */
-        }
     </style>
 </head>
 <body>
@@ -156,6 +164,7 @@
                 <img src="logo.png" alt="Logo" class="avatar">
                 <h1 class="header-title">Phúc Bình Scalping Phái Sinh</h1>
             </div>
+            
             <div class="main-content">
                 <div class="left-column">
                     <div class="software-title">Phần mềm phân tích biên độ</div>
@@ -167,8 +176,8 @@
                             <img src="phanmem3.png" alt="Phần mềm phân tích phái sinh">
                         </div>
                     </div>
-
                 </div>
+                
                 <div class="right-column">
                     <div class="vps-info">ID VPS: BOR5 - NGUYỄN PHÚC BÌNH</div>
                     <div class="phone-info">LH: 0853.525.379</div>
@@ -186,7 +195,22 @@
                     </div>
                 </div>
             </div>
+
+            <!-- KHOẢNG KHÔNG GIAN DÀNH CHO BIỂU ĐỒ NẰM DƯỚI (NỀN TRẮNG SẠCH SẼ) -->
+            <div class="chart-container-box">
+                <div class="chart-header-title">
+                    <span>📈</span> DIỄN BIẾN THỊ TRƯỜNG
+                </div>
+                
+                <!-- Đã sửa lại đường link chính xác đến file chart_only.html -->
+                <iframe 
+                    src="https://phucbinhscalping.online/server_1/chart_only.html" 
+                    class="clean-chart-iframe"
+                    scrolling="no">
+                </iframe>
+            </div>
         </div>
+
         <div class="container">
             <div class="qr-section">
                 <div class="qr-block">
@@ -208,6 +232,7 @@
                 <button class="btn btn-cafe" id="openCafeBtn">☕ Mời cafe AD</button>
             </div>
         </div>
+
         <div class="container" id="bai-viet">
             <div class="blog-section">
                 <div class="blog-header">📚 Bài Viết </div>
@@ -240,6 +265,7 @@
             </div>
         </div>
     </div>
+
     <div class="modal-overlay" id="contactModal">
         <div class="modal-box">
             <h3>💬 Đăng Ký Tư Vấn</h3>
@@ -265,6 +291,7 @@
             <button class="btn-close" id="closeContactBtn">Đóng</button>
         </div>
     </div>
+
     <div class="modal-overlay" id="cafeModal">
         <div class="modal-box">
             <h3>Mời Cafe Thêm Động Lực AD</h3>
@@ -274,6 +301,7 @@
             </div>
         </div>
     </div>
+
     <div class="modal-overlay" id="idModal">
         <div class="modal-box">
             <h3>Chuyển ID trên VPS</h3>
@@ -281,6 +309,7 @@
             <div><button class="btn-close" id="closeIdBtn">Đóng</button></div>
         </div>
     </div>
+
     <script>
         function setup(btnId, closeId, modalId) {
             const btn = document.getElementById(btnId);
@@ -289,7 +318,6 @@
             if(btn) btn.onclick = () => modal.classList.add('active');
             if(close) close.onclick = () => modal.classList.remove('active');
             
-            // SỬA ĐÚNG KHÚC NÀY: Lắng nghe sự kiện click riêng cho từng modal, tránh bị ghi đè sự kiện
             if(modal) {
                 modal.addEventListener('click', (e) => {
                     if (e.target === modal) {
